@@ -11,36 +11,14 @@ import {
   Clock, 
   MapPin, 
   MessageCircle,
-  Phone,
-  Globe
+ 
 } from "lucide-react"
 
-interface Product {
-  id: number
-  designation: string
-  description: string
-  prix_vente: number
-  quantite_stock: number
-  image1: string | string[] // Can be a string or array of images
-}
-
-interface ShopData {
-  raison_sociale: string
-  couleur_theme: string
-  contact_whatsapp: string
-  produits: Product[]
-}
-
-interface CartItem {
-  product: Product
-  quantity: number
-}
-
-// URL for Laragon server
+// URL de votre serveur Laragon locale
 const BASE_URL = "http://ecommerce.test:8034"
 
-// Intelligent helper function to parse all images safely for the gallery modal
-function getAllImageUrls(imagePath: string | string[] | null | undefined, baseUrl: string): string[] {
+// Fonction de résolution intelligente pour la galerie d'images du modal
+function getAllImageUrls(imagePath, baseUrl) {
   if (!imagePath) {
     return ["https://placehold.co/600x600?text=Sans+photo"]
   }
@@ -56,12 +34,12 @@ function getAllImageUrls(imagePath: string | string[] | null | undefined, baseUr
       return "https://placehold.co/600x600?text=Sans+photo"
     }
     
-    // If it's already an absolute signed/external URL
+    // Si c'est déjà une URL absolue/externe
     if (path.startsWith("http://") || path.startsWith("https://")) {
       return path
     }
 
-    // Build storage public path
+    // Reconstruction du stockage local public
     if (path.startsWith("/storage/")) {
       return `${baseUrl}${path}`
     }
@@ -73,38 +51,37 @@ function getAllImageUrls(imagePath: string | string[] | null | undefined, baseUr
   })
 }
 
-// Intelligent helper function to parse images safely without breaking
-function getImageUrl(imagePath: string | string[] | null | undefined, baseUrl: string) {
+// Fonction pour l'image principale
+function getImageUrl(imagePath, baseUrl) {
   const allUrls = getAllImageUrls(imagePath, baseUrl)
   return allUrls[0]
 }
 
-export default function StorefrontPage({ params }: { params: any }) {
-  // Safe dynamic parameter resolution for both React 18 & 19 (Next.js 15)
-  const [tenant, setTenant] = useState<string>("")
-  const [shop, setShop] = useState<ShopData | null>(null)
+export default function StorefrontPage({ params }) {
+  const [tenant, setTenant] = useState("")
+  const [shop, setShop] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [cart, setCart] = useState<CartItem[]>([])
+  const [cart, setCart] = useState([])
   const [isCartOpen, setIsCartOpen] = useState(false)
   
-  // Active Filter: 'all' | 'instock' | 'promo'
-  const [activeFilter, setActiveFilter] = useState<'all' | 'instock' | 'promo'>('all')
+  // Filtre actif: 'all' | 'instock' | 'promo'
+  const [activeFilter, setActiveFilter] = useState('all')
   
-  // State for the product details modal
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  // État du modal de détails produit
+  const [selectedProduct, setSelectedProduct] = useState(null)
 
-  // Checkout states
+  // États du checkout
   const [nomClient, setNomClient] = useState("")
   const [phoneClient, setPhoneClient] = useState("")
   const [adresse, setAdresse] = useState("")
   const [submitting, setSubmitting] = useState(false)
-  const [toastMessage, setToastMessage] = useState<string | null>(null)
+  const [toastMessage, setToastMessage] = useState(null)
 
-  // Safely extract the "tenant" parameter from either a Promise (Next.js 15) or an Object (React 18)
+  // Résolution sécurisée de la promesse params exigée par Next.js 15
   useEffect(() => {
     if (!params) return
 
-    if (typeof (params as any).then === "function" || params instanceof Promise) {
+    if (typeof params.then === "function" || params instanceof Promise) {
       Promise.resolve(params).then((resolved) => {
         if (resolved && resolved.tenant) {
           setTenant(resolved.tenant)
@@ -129,9 +106,9 @@ export default function StorefrontPage({ params }: { params: any }) {
         const data = await res.json()
         console.log("Structured API Response:", data)
         
-        let normalizedShop: ShopData | null = null
+        let normalizedShop = null
 
-        // Support various API envelope versions
+        // Prise en charge des différentes enveloppes d'API
         if (data && data.shop) {
           normalizedShop = {
             raison_sociale: data.shop.raison_sociale || data.shop.nom || "Ma Boutique",
@@ -157,7 +134,7 @@ export default function StorefrontPage({ params }: { params: any }) {
 
         setShop(normalizedShop)
 
-        // Hydrate local cart
+        // Récupération du panier local
         const savedCart = localStorage.getItem(`cart_${tenant}`)
         if (savedCart) {
           setCart(JSON.parse(savedCart))
@@ -181,7 +158,7 @@ export default function StorefrontPage({ params }: { params: any }) {
     }
   }, [cart, tenant, shop])
 
-  const showToast = (message: string) => {
+  const showToast = (message) => {
     setToastMessage(message)
     setTimeout(() => setToastMessage(null), 3000)
   }
@@ -203,7 +180,7 @@ export default function StorefrontPage({ params }: { params: any }) {
         <div className="text-6xl mb-4 animate-bounce">🏪</div>
         <h1 className="text-3xl font-extrabold text-slate-800 mb-2">Oups ! Boutique introuvable</h1>
         <p className="text-slate-500 max-w-md">
-          L'adresse <code className="bg-slate-200 px-2 py-1 rounded text-red-600 font-mono text-sm">{tenant}</code> n'est pas active ou est incorrecte.
+          L&apos;adresse <code className="bg-slate-200 px-2 py-1 rounded text-red-600 font-mono text-sm">{tenant}</code> n&apos;est pas active ou est incorrecte.
         </p>
       </div>
     )
@@ -214,7 +191,7 @@ export default function StorefrontPage({ params }: { params: any }) {
   const resolvedWhatsapp = shop.contact_whatsapp
   const resolvedProducts = shop.produits
 
-  const addToCart = (product: Product) => {
+  const addToCart = (product) => {
     const existing = cart.find((item) => item.product.id === product.id)
     if (existing && existing.quantity >= product.quantite_stock) {
       showToast("Limite de stock disponible atteinte.")
@@ -232,7 +209,7 @@ export default function StorefrontPage({ params }: { params: any }) {
     setIsCartOpen(true)
   }
 
-  const updateQuantity = (productId: number, delta: number) => {
+  const updateQuantity = (productId, delta) => {
     setCart((prev) =>
       prev
         .map((item) => {
@@ -247,11 +224,11 @@ export default function StorefrontPage({ params }: { params: any }) {
           }
           return item
         })
-        .filter(Boolean) as CartItem[]
+        .filter(Boolean)
     )
   }
 
-  const removeFromCart = (productId: number) => {
+  const removeFromCart = (productId) => {
     setCart((prev) => prev.filter((item) => item.product.id !== productId))
   }
 
@@ -261,9 +238,9 @@ export default function StorefrontPage({ params }: { params: any }) {
   const getFilteredProducts = () => {
     switch (activeFilter) {
       case "instock":
-        return resolvedProducts.filter((p: Product) => p.quantite_stock > 0)
+        return resolvedProducts.filter((p) => p.quantite_stock > 0)
       case "promo":
-        return resolvedProducts.filter((p: Product) => p.quantite_stock > 0 && p.quantite_stock <= 5)
+        return resolvedProducts.filter((p) => p.quantite_stock > 0 && p.quantite_stock <= 5)
       case "all":
       default:
         return resolvedProducts
@@ -272,7 +249,7 @@ export default function StorefrontPage({ params }: { params: any }) {
 
   const filteredProducts = getFilteredProducts()
 
-  const handleCheckout = async (e: React.FormEvent) => {
+  const handleCheckout = async (e) => {
     e.preventDefault()
     if (cart.length === 0 || submitting) return
 
@@ -297,7 +274,6 @@ export default function StorefrontPage({ params }: { params: any }) {
     }
 
     try {
-      // Step 1: Attempt local database order storage
       const res = await fetch(`${BASE_URL}/api/commandes`, {
         method: "POST",
         headers: { 
@@ -314,7 +290,6 @@ export default function StorefrontPage({ params }: { params: any }) {
         console.warn("Laravel server returned an error, proceeding directly to WhatsApp checkout.")
       }
 
-      // Step 2: Formulate message string
       let messageText = `*Nouvelle commande sur la boutique ${resolvedShopName}*\n\n`
       messageText += `👤 *Client :* ${nomClient}\n`
       messageText += `📞 *Téléphone :* ${phoneClient}\n`
@@ -327,7 +302,6 @@ export default function StorefrontPage({ params }: { params: any }) {
       
       messageText += `\n💵 *TOTAL : ${numberFormat(montantTotal)} FCFA*`
 
-      // Step 3: Open WhatsApp Link
       const formattedWhatsapp = resolvedWhatsapp.replace(/\D/g, "")
       const urlWhatsApp = `https://wa.me/${formattedWhatsapp}?text=${encodeURIComponent(messageText)}`
       
@@ -411,7 +385,7 @@ export default function StorefrontPage({ params }: { params: any }) {
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 md:gap-6">
-            {filteredProducts.map((product: Product) => (
+            {filteredProducts.map((product) => (
               <ProductCard 
                 key={product.id} 
                 product={product} 
@@ -424,7 +398,7 @@ export default function StorefrontPage({ params }: { params: any }) {
         )}
       </main>
 
-      {/* 5. COMPOSANT : TIROIR PANIER & FORMULAIRE (With smooth fluid transitions) */}
+      {/* 5. COMPOSANT : TIROIR PANIER & FORMULAIRE */}
       <CartDrawer 
         isOpen={isCartOpen}
         cart={cart}
@@ -443,7 +417,7 @@ export default function StorefrontPage({ params }: { params: any }) {
         onSubmit={handleCheckout}
       />
 
-      {/* 6. COMPOSANT : MODAL DETAILS PRODUIT (With image gallery carousel) */}
+      {/* 6. COMPOSANT : MODAL DETAILS PRODUIT */}
       <ProductDetailModal
         isOpen={!!selectedProduct}
         product={selectedProduct}
@@ -458,12 +432,7 @@ export default function StorefrontPage({ params }: { params: any }) {
 // ==========================================
 // --- COMPOSANT : HEADER
 // ==========================================
-function Header({ shopName, cartCount, brandColor, onCartClick }: {
-  shopName: string
-  cartCount: number
-  brandColor: string
-  onCartClick: () => void
-}) {
+function Header({ shopName, cartCount, brandColor, onCartClick }) {
   const safeShopName = shopName || "Boutique"
   const safeBrandColor = brandColor || "#10b981"
   
@@ -502,11 +471,7 @@ function Header({ shopName, cartCount, brandColor, onCartClick }: {
 // ==========================================
 // --- COMPOSANT : HERO CAROUSEL
 // ==========================================
-function HeroCarousel({ products, brandColor, onBuyNow }: { 
-  products: Product[]
-  brandColor: string 
-  onBuyNow: (product: Product) => void
-}) {
+function HeroCarousel({ products, brandColor, onBuyNow }) {
   const [currentIndex, setCurrentIndex] = useState(0)
 
   useEffect(() => {
@@ -540,7 +505,7 @@ function HeroCarousel({ products, brandColor, onBuyNow }: {
                   src={getImageUrl(prod.image1, BASE_URL)} 
                   alt={prod.designation} 
                   className="absolute right-0 top-0 h-full w-full md:w-2/3 object-cover opacity-60 md:opacity-95"
-                  onError={(e) => { (e.target as HTMLImageElement).src = "https://placehold.co/800x400?text=Produit" }}
+                  onError={(e) => { e.target.src = "https://placehold.co/800x400?text=Produit" }}
                 />
               )}
 
@@ -586,11 +551,7 @@ function HeroCarousel({ products, brandColor, onBuyNow }: {
 // ==========================================
 // --- COMPOSANT : FILTRE CATEGORIES
 // ==========================================
-function CategoryFilters({ activeFilter, brandColor, onSelectFilter }: {
-  activeFilter: 'all' | 'instock' | 'promo'
-  brandColor: string
-  onSelectFilter: (filter: 'all' | 'instock' | 'promo') => void
-}) {
+function CategoryFilters({ activeFilter, brandColor, onSelectFilter }) {
   return (
     <section className="mb-10">
       <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400 mb-4">Parcourir la collection</h3>
@@ -645,12 +606,7 @@ function CategoryFilters({ activeFilter, brandColor, onSelectFilter }: {
 // ==========================================
 // --- COMPOSANT : CARTE PRODUIT
 // ==========================================
-function ProductCard({ product, brandColor, onAddToCart, onOpenDetails }: {
-  product: Product
-  brandColor: string
-  onAddToCart: (product: Product) => void
-  onOpenDetails: (product: Product) => void
-}) {
+function ProductCard({ product, brandColor, onAddToCart, onOpenDetails }) {
   const isOutOfStock = product.quantite_stock <= 0
   const isLowStock = product.quantite_stock > 0 && product.quantite_stock <= 5
   
@@ -666,7 +622,7 @@ function ProductCard({ product, brandColor, onAddToCart, onOpenDetails }: {
           src={getImageUrl(product.image1, BASE_URL)} 
           alt={product.designation} 
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-          onError={(e) => { (e.target as HTMLImageElement).src = "https://placehold.co/300x300?text=Produit" }}
+          onError={(e) => { (e.target).src = "https://placehold.co/300x300?text=Produit" }}
         />
 
         {/* Dynamic Badges */}
@@ -729,22 +685,6 @@ function ProductCard({ product, brandColor, onAddToCart, onOpenDetails }: {
 function CartDrawer({
   isOpen, cart, montantTotal, brandColor, nomClient, phoneClient, adresse, submitting,
   onClose, onUpdateQuantity, onRemove, setNomClient, setPhoneClient, setAdresse, onSubmit
-}: {
-  isOpen: boolean
-  cart: CartItem[]
-  montantTotal: number
-  brandColor: string
-  nomClient: string
-  phoneClient: string
-  adresse: string
-  submitting: boolean
-  onClose: () => void
-  onUpdateQuantity: (id: number, delta: number) => void
-  onRemove: (id: number) => void
-  setNomClient: (val: string) => void
-  setPhoneClient: (val: string) => void
-  setAdresse: (val: string) => void
-  onSubmit: (e: React.FormEvent) => void
 }) {
   return (
     <div className={`fixed inset-0 z-50 flex justify-end transition-opacity duration-300 ease-in-out ${
@@ -799,7 +739,8 @@ function CartDrawer({
                     <img 
                       src={getImageUrl(item.product.image1, BASE_URL)} 
                       className="w-14 h-14 rounded-2xl object-cover bg-slate-50 border border-slate-100"
-                      onError={(e) => { (e.target as HTMLImageElement).src = "https://placehold.co/100x100" }}
+                      alt={item.product.designation}
+                      onError={(e) => { e.target.src = "https://placehold.co/100x100" }}
                     />
                     <div className="space-y-0.5">
                       <h4 className="text-sm font-bold text-slate-800 line-clamp-1">{item.product.designation}</h4>
@@ -839,7 +780,7 @@ function CartDrawer({
                 </div>
               ))}
 
-              {/* Minimalist Checkout Form */}
+              {/* Formulaire de livraison minimaliste */}
               <form onSubmit={onSubmit} className="bg-slate-50 border border-slate-100 rounded-3xl p-4 mt-6 space-y-3 shadow-inner">
                 <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
                   <MapPin className="h-3.5 w-3.5 text-slate-400" /> Adresse pour la livraison
@@ -892,7 +833,7 @@ function CartDrawer({
           )}
         </div>
 
-        {/* Total Summary */}
+        {/* Totalisateur fixe de panier */}
         {cart.length > 0 && (
           <div className="border-t border-slate-100 pt-4 bg-white space-y-1">
             <div className="flex justify-between items-center font-bold text-slate-900">
@@ -912,165 +853,128 @@ function CartDrawer({
 }
 
 // ==========================================
-// --- COMPOSANT : MODAL DETAILS PRODUIT (With gallery & multi-image support)
+// --- COMPOSANT : MODAL DETAILS PRODUIT (GALERIE INTERACTIVE)
 // ==========================================
 function ProductDetailModal({
   isOpen, product, brandColor, onClose, onAddToCart
-}: {
-  isOpen: boolean
-  product: Product | null
-  brandColor: string
-  onClose: () => void
-  onAddToCart: (product: Product) => void
 }) {
-  const [activeImgIndex, setActiveImgIndex] = useState(0)
+  const [activeImageIndex, setActiveImageIndex] = useState(0)
 
-  // Reset selected image index when modal opens with a new product
+  // Réinitialisation de l'image active lors du changement de produit
   useEffect(() => {
-    setActiveImgIndex(0)
+    setActiveImageIndex(0)
   }, [product])
 
-  if (!product) return null
+  if (!isOpen || !product) return null
 
   const images = getAllImageUrls(product.image1, BASE_URL)
   const isOutOfStock = product.quantite_stock <= 0
-  const isLowStock = product.quantite_stock > 0 && product.quantite_stock <= 5
 
   return (
-    <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 md:p-6 transition-opacity duration-300 ease-in-out ${
-      isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
-    }`}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
       {/* Backdrop */}
       <div 
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300" 
+        className="absolute inset-0 bg-black/60 backdrop-blur-md transition-opacity animate-fade-in" 
         onClick={onClose} 
       />
 
-      {/* Modal Card with smooth scale transition */}
-      <div className={`bg-white w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl relative transition-all duration-300 transform ease-out ${
-        isOpen ? "scale-100 opacity-100" : "scale-95 opacity-0"
-      }`}>
+      {/* Corps du modal */}
+      <div className="bg-white w-full max-w-3xl rounded-3xl overflow-hidden shadow-2xl relative z-10 flex flex-col md:flex-row max-h-[90vh] md:max-h-[80vh] transition-all duration-300">
         
-        {/* Close Button */}
+        {/* Bouton de fermeture mobile & desktop */}
         <button 
-          onClick={onClose} 
-          className="absolute top-4 right-4 z-20 h-10 w-10 rounded-full bg-white/80 backdrop-blur-md border border-slate-150 flex items-center justify-center text-slate-700 hover:bg-white active:scale-95 transition-all shadow-sm"
+          onClick={onClose}
+          className="absolute top-4 right-4 h-10 w-10 rounded-full bg-slate-950/60 text-white hover:bg-slate-950 transition flex items-center justify-center z-20"
         >
           ✕
         </button>
 
-        <div className="grid md:grid-cols-2 h-full max-h-[85vh] md:max-h-[70vh] overflow-y-auto">
-          
-          {/* Left Column: Interactive Image Gallery */}
-          <div className="p-6 bg-slate-50 flex flex-col justify-between border-r border-slate-100">
-            <div className="relative aspect-square rounded-2xl overflow-hidden bg-white shadow-inner flex items-center justify-center">
-              <img 
-                src={images[activeImgIndex]} 
-                alt={product.designation} 
-                className="w-full h-full object-cover"
-                onError={(e) => { (e.target as HTMLImageElement).src = "https://placehold.co/600x600?text=Sans+photo" }}
-              />
+        {/* Zone de gauche : Galerie Photo */}
+        <div className="w-full md:w-1/2 bg-slate-50 p-6 flex flex-col justify-between relative">
+          <div className="aspect-square w-full rounded-2xl overflow-hidden bg-white shadow-sm flex items-center justify-center">
+            <img 
+              src={images[activeImageIndex]} 
+              alt={product.designation} 
+              className="w-full h-full object-cover transition-all duration-500"
+              onError={(e) => { e.target.src = "https://placehold.co/600x600?text=Produit" }}
+            />
+          </div>
 
-              {/* Out of stock tag */}
-              {isOutOfStock && (
-                <div className="absolute inset-0 bg-black/50 backdrop-blur-[1px] flex items-center justify-center">
-                  <span className="bg-red-600 text-white font-black text-xs px-4 py-2 rounded-xl uppercase tracking-widest shadow-md">
-                    Épuisé
-                  </span>
-                </div>
+          {/* Miniatures de navigation (uniquement s'il y a plusieurs images) */}
+          {images.length > 1 && (
+            <div className="flex gap-2.5 overflow-x-auto pt-4 scrollbar-none snap-x">
+              {images.map((imgUrl, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setActiveImageIndex(idx)}
+                  className={`h-14 w-14 rounded-xl overflow-hidden border-2 bg-white snap-start flex-shrink-0 transition-all ${
+                    idx === activeImageIndex ? "scale-105" : "opacity-60 hover:opacity-100"
+                  }`}
+                  style={{ borderColor: idx === activeImageIndex ? brandColor : "transparent" }}
+                >
+                  <img src={imgUrl} className="w-full h-full object-cover" alt="" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Zone de droite : Informations Produit */}
+        <div className="w-full md:w-1/2 p-6 md:p-8 flex flex-col justify-between overflow-y-auto">
+          <div className="space-y-4">
+            <div className="flex justify-between items-start gap-4">
+              <h3 className="text-2xl font-black text-slate-900 tracking-tight leading-tight">
+                {product.designation}
+              </h3>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <span className="text-2xl font-black text-slate-950">
+                {numberFormat(product.prix_vente)} FCFA
+              </span>
+              
+              {product.quantite_stock <= 5 && product.quantite_stock > 0 && (
+                <span className="bg-amber-100 text-amber-700 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg">
+                  Plus que {product.quantite_stock} restants !
+                </span>
               )}
             </div>
 
-            {/* Thumbnail Selection */}
-            {images.length > 1 && (
-              <div className="flex gap-2.5 mt-4 overflow-x-auto pb-1 scrollbar-none snap-x">
-                {images.map((imgUrl, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setActiveImgIndex(index)}
-                    className={`relative w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 snap-start border-2 bg-white transition-all ${
-                      index === activeImgIndex 
-                        ? "border-slate-800 scale-105 shadow-sm" 
-                        : "border-transparent opacity-65 hover:opacity-100"
-                    }`}
-                  >
-                    <img 
-                      src={imgUrl} 
-                      alt="" 
-                      className="w-full h-full object-cover" 
-                      onError={(e) => { (e.target as HTMLImageElement).src = "https://placehold.co/100x100" }}
-                    />
-                  </button>
-                ))}
-              </div>
-            )}
+            <div className="pt-2">
+              <h4 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Description</h4>
+              <p className="text-sm text-slate-500 leading-relaxed max-h-[160px] overflow-y-auto">
+                {product.description || "Aucune description supplémentaire fournie pour cet article d'exception."}
+              </p>
+            </div>
           </div>
 
-          {/* Right Column: Detailed Product Info */}
-          <div className="p-6 md:p-8 flex flex-col justify-between space-y-6">
-            <div className="space-y-4">
-              {/* Badges */}
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-extrabold uppercase bg-slate-100 text-slate-500 px-2.5 py-1 rounded-full">
-                  Détails produit
-                </span>
-                
-                {isLowStock && (
-                  <span className="bg-amber-100 text-amber-800 font-extrabold text-[10px] px-2.5 py-1 rounded-full flex items-center gap-1">
-                    <Clock className="h-3 w-3" /> {product.quantite_stock} restants
-                  </span>
-                )}
-              </div>
-
-              <h3 className="text-xl md:text-2xl font-extrabold text-slate-900 tracking-tight leading-tight">
-                {product.designation}
-              </h3>
-
-              <div className="text-2xl font-black text-slate-900">
-                {numberFormat(product.prix_vente)} FCFA
-              </div>
-
-              <div className="border-t border-slate-50 pt-4">
-                <h4 className="text-xs font-bold uppercase text-slate-400 tracking-wider mb-2">Description</h4>
-                <p className="text-sm text-slate-600 leading-relaxed max-h-[150px] overflow-y-auto">
-                  {product.description || "Aucune description supplémentaire fournie pour cet article de qualité supérieure."}
-                </p>
-              </div>
+          <div className="pt-6 border-t border-slate-100 mt-6 space-y-4">
+            <div className="flex justify-between text-sm">
+              <span className="font-semibold text-slate-400">Disponibilité :</span>
+              <span className={`font-bold ${isOutOfStock ? "text-red-500" : "text-emerald-500"}`}>
+                {isOutOfStock ? "Épuisé" : `En stock (${product.quantite_stock} pièces)`}
+              </span>
             </div>
 
-            {/* Action CTA Block */}
-            <div className="pt-6 border-t border-slate-50">
-              <button
-                disabled={isOutOfStock}
-                onClick={() => {
-                  onAddToCart(product)
-                  onClose()
-                }}
-                style={{ backgroundColor: isOutOfStock ? "#e2e8f0" : brandColor }}
-                className={`w-full py-4 rounded-2xl text-white font-extrabold text-sm shadow-md transition-all duration-150 active:scale-95 flex items-center justify-center gap-2 ${
-                  isOutOfStock ? "cursor-not-allowed text-slate-400" : "hover:opacity-95"
-                }`}
-              >
-                {isOutOfStock ? (
-                  <span>Article épuisé</span>
-                ) : (
-                  <>
-                    <span>Ajouter au panier</span>
-                    <Plus className="h-4 w-4" />
-                  </>
-                )}
-              </button>
-            </div>
-
+            <button
+              disabled={isOutOfStock}
+              onClick={() => {
+                onAddToCart(product)
+                onClose()
+              }}
+              style={{ backgroundColor: isOutOfStock ? "#cbd5e1" : brandColor }}
+              className="w-full py-4 rounded-2xl text-white font-extrabold text-sm shadow-md hover:opacity-95 transition-all duration-150 active:scale-95 flex items-center justify-center gap-2"
+            >
+              <ShoppingBag className="h-4 w-4" />
+              <span>{isOutOfStock ? "Rupture de Stock" : "Ajouter au Panier"}</span>
+            </button>
           </div>
-
         </div>
-
       </div>
     </div>
   )
 }
 
-function numberFormat(num: number) {
+function numberFormat(num) {
   return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")
 }

@@ -4,15 +4,15 @@ import { useState } from "react"
 import { 
   Rocket, 
   Sparkles, 
-  CheckCircle, 
+
   ArrowRight, 
   Palette, 
-  MessageCircle, 
+ 
   TrendingUp, 
   Store,
   ShieldCheck,
   Smartphone,
-  Globe,
+
   Loader2,
   Settings,
   Eye
@@ -36,26 +36,28 @@ export default function LandingPage() {
   // États d'envoi et de succès
   const [submitting, setSubmitting] = useState(false)
   const [successData, setSuccessData] = useState<{
-    shopUrl: string
+    shopUrl: string, 
     adminUrl: string
   } | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  const handleRaisonSocialeChange = (value: string) => {
+  const handleRaisonSocialeChange = (value) => {
     setRaisonSociale(value)
     // Convertit "Sokhna Cosmétiques" en "sokhna-cosmetiques"
     const generatedSlug = value
-      .toLowerCase()
-      .trim()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "") // Supprime les accents
-      .replace(/[^a-z0-9 -]/g, "") // Supprime les caractères spéciaux
-      .replace(/\s+/g, "-") // Remplace les espaces par des tirets
-      .replace(/-+/g, "-") // Supprime les tirets doublons
+    .toLowerCase()
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Nettoyage et correction de la Regex des accents
+    .replace(/[^a-z0-9 -]/g, "") // Supprime les caractères spéciaux
+    .replace(/\s+/g, "-") // Remplace les espaces par des tirets
+    .replace(/-+/g, "-") // Supprime les tirets doublons
     setSlug(generatedSlug)
+
+
   }
 
-  const handleOnboardingSubmit = async (e: React.FormEvent) => {
+  const handleOnboardingSubmit = async (e) => {
     e.preventDefault()
     setSubmitting(true)
     setErrorMessage(null)
@@ -92,7 +94,7 @@ export default function LandingPage() {
         adminUrl: `${BASE_URL}/admin/login`
       })
 
-    } catch (err: any) {
+    } catch {
       console.error(err)
       setErrorMessage(err.message || "Une erreur technique s'est produite.")
     } finally {
