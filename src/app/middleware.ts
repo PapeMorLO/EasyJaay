@@ -5,7 +5,7 @@ export function middleware(request: NextRequest) {
   const url = request.nextUrl.clone()
   const hostname = request.headers.get('host') || ''
 
-  // Sécurité pour les fichiers internes
+  // Ne rien faire pour les fichiers statiques ou l'API
   if (
     url.pathname.startsWith('/_next') || 
     url.pathname.startsWith('/api') ||
@@ -14,30 +14,16 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // --- LOG DE TEST (Regarde ton terminal Next.js quand tu recharges la page) ---
-  console.log("URL détectée par le Middleware :", hostname)
-
-  let tenant = ''
-
-  // Détection générique pour le local (découpe tout ce qui est avant le premier point)
-  // Fonctionne pour sokhna-cosmetiques.localhost:3000, 127.0.0.1.vcap.me:3000, etc.
-  if (hostname.includes('localhost:3000') && hostname !== 'localhost:3000') {
-    tenant = hostname.split('.')[0]
-  } 
-  // Configuration pour ta production future
-  else if (hostname.includes('.easyjaay.baobapp.tech')) {
-    tenant = hostname.split('.easyjaay.baobapp.tech')[0]
+  // Si on est sur le domaine principal, on laisse Next.js gérer
+  if (hostname === 'easyjaay.baobapp.tech' || hostname === 'localhost:3000') {
+    return NextResponse.next()
   }
 
-  if (tenant) {
-    console.log("Tenant intercepté avec succès :", tenant)
-    url.pathname = `/${tenant}${url.pathname}`
-    return NextResponse.rewrite(url)
-  }
+  // Extraction du sous-domaine (ex: client1.easyjaay.baobapp.tech -> client1)
+  const subdomain = hostname.split('.')[0]
 
-  return NextResponse.next()
-}
-
-export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+  // On réécrit l'URL en interne pour aller dans le dossier [subdomain]
+  url.pathname = `/${subdomain}${url.pathname}`
+  
+  return NextResponse.rewrite(url)
 }

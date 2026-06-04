@@ -15,7 +15,7 @@ import {
 } from "lucide-react"
 
 // URL de votre serveur Laragon locale
-const BASE_URL = "http://ecommerce.test:8034"
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
 // Fonction de résolution intelligente pour la galerie d'images du modal
 function getAllImageUrls(imagePath, baseUrl) {
