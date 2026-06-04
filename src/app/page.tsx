@@ -19,7 +19,7 @@ import {
 } from "lucide-react"
 
 // URL de ton Laragon locale
-const BASE_URL = "http://ecommerce.test:8034"
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export default function LandingPage() {
   const [isModalOpen, setIsModalOpen] = useState(false)
