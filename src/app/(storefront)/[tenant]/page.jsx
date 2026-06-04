@@ -11,11 +11,16 @@ import {
   Clock, 
   MapPin, 
   MessageCircle,
- 
 } from "lucide-react"
 
-// URL de votre serveur Laragon locale
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
+// URL de votre serveur de production ou local
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://easyjaayback.baobapp.tech";
+
+// Formateur de prix global
+function numberFormat(number) {
+  if (number === undefined || number === null) return "0"
+  return new Intl.NumberFormat('fr-FR').format(number)
+}
 
 // Fonction de résolution intelligente pour la galerie d'images du modal
 function getAllImageUrls(imagePath, baseUrl) {
@@ -104,7 +109,6 @@ export default function StorefrontPage({ params }) {
         if (!res.ok) throw new Error("Server returned an error")
 
         const data = await res.json()
-        console.log("Structured API Response:", data)
         
         let normalizedShop = null
 
@@ -114,6 +118,7 @@ export default function StorefrontPage({ params }) {
             raison_sociale: data.shop.raison_sociale || data.shop.nom || "Ma Boutique",
             couleur_theme: data.shop.couleur_theme || data.shop.theme || "#10b981",
             contact_whatsapp: data.shop.contact_whatsapp || data.shop.whatsapp || "",
+            logo: data.shop.logo || data.logo || null,
             produits: data.produits || data.shop.produits || []
           }
         } else if (data && data.data) {
@@ -121,6 +126,7 @@ export default function StorefrontPage({ params }) {
             raison_sociale: data.data.raison_sociale || data.data.nom || "Ma Boutique",
             couleur_theme: data.data.couleur_theme || data.data.theme || "#10b981",
             contact_whatsapp: data.data.contact_whatsapp || data.data.whatsapp || "",
+            logo: data.data.logo || data.logo || null,
             produits: data.data.produits || data.data.products || []
           }
         } else if (data) {
@@ -128,6 +134,7 @@ export default function StorefrontPage({ params }) {
             raison_sociale: data.raison_sociale || data.nom || "Ma Boutique",
             couleur_theme: data.couleur_theme || data.theme || "#10b981",
             contact_whatsapp: data.contact_whatsapp || data.whatsapp || "",
+            logo: data.logo || null,
             produits: data.produits || data.products || []
           }
         }
@@ -190,6 +197,7 @@ export default function StorefrontPage({ params }) {
   const brandColor = shop.couleur_theme
   const resolvedWhatsapp = shop.contact_whatsapp
   const resolvedProducts = shop.produits
+  const resolvedLogo = shop.logo
 
   const addToCart = (product) => {
     const existing = cart.find((item) => item.product.id === product.id)
@@ -324,7 +332,7 @@ export default function StorefrontPage({ params }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-24 selection:bg-slate-200 antialiased font-sans">
+    <div className="min-h-screen bg-slate-50 pb-0 selection:bg-slate-200 antialiased font-sans relative">
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         
@@ -339,7 +347,7 @@ export default function StorefrontPage({ params }) {
 
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-sm font-semibold px-6 py-3 rounded-2xl shadow-xl z-50 flex items-center gap-3 animate-bounce">
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-sm font-semibold px-6 py-3 rounded-2xl shadow-xl z-50 flex items-center gap-3 animate-bounce">
           <Bell className="h-4 w-4 text-white" />
           {toastMessage}
         </div>
@@ -350,6 +358,7 @@ export default function StorefrontPage({ params }) {
         shopName={resolvedShopName} 
         cartCount={cartCount} 
         brandColor={brandColor}
+        logo={resolvedLogo}
         onCartClick={() => setIsCartOpen(true)} 
       />
 
@@ -425,6 +434,30 @@ export default function StorefrontPage({ params }) {
         onClose={() => setSelectedProduct(null)}
         onAddToCart={addToCart}
       />
+
+      {/* 7. COMPOSANT : FOOTER */}
+      <Footer 
+        shopName={resolvedShopName}
+        brandColor={brandColor}
+        logo={resolvedLogo}
+        whatsapp={resolvedWhatsapp}
+      />
+
+      {/* 8. BOUTON FLOATING WHATSAPP */}
+      {resolvedWhatsapp && (
+        <a 
+          href={`https://wa.me/${resolvedWhatsapp.replace(/\D/g, "")}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="fixed bottom-6 right-6 z-50 flex items-center justify-center h-14 w-14 rounded-full bg-emerald-500 text-white shadow-2xl hover:bg-emerald-600 hover:scale-110 active:scale-95 transition-all duration-300 group"
+          title="Contacter le vendeur"
+        >
+          <MessageCircle className="h-7 w-7 fill-white/10" />
+          <span className="absolute right-16 bg-slate-900 text-white text-xs font-bold px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap shadow-md">
+            Contacter le vendeur
+          </span>
+        </a>
+      )}
     </div>
   )
 }
@@ -432,7 +465,7 @@ export default function StorefrontPage({ params }) {
 // ==========================================
 // --- COMPOSANT : HEADER
 // ==========================================
-function Header({ shopName, cartCount, brandColor, onCartClick }) {
+function Header({ shopName, cartCount, brandColor, logo, onCartClick }) {
   const safeShopName = shopName || "Boutique"
   const safeBrandColor = brandColor || "#10b981"
   
@@ -440,12 +473,21 @@ function Header({ shopName, cartCount, brandColor, onCartClick }) {
     <header className="sticky top-0 bg-white/80 backdrop-blur-md border-b border-slate-100 z-40 px-4 md:px-8 py-4">
       <div className="max-w-6xl mx-auto flex justify-between items-center">
         <div className="flex items-center gap-3">
-          <div 
-            className="h-10 w-10 flex items-center justify-center rounded-xl font-extrabold text-white shadow-sm text-lg" 
-            style={{ backgroundColor: safeBrandColor }}
-          >
-            {safeShopName.charAt(0).toUpperCase()}
-          </div>
+          {logo ? (
+            <img 
+              src={getImageUrl(logo, BASE_URL)} 
+              alt={safeShopName} 
+              className="h-10 w-10 object-cover rounded-xl shadow-sm border border-slate-100"
+              onError={(e) => { (e.target).style.display = 'none'; }}
+            />
+          ) : (
+            <div 
+              className="h-10 w-10 flex items-center justify-center rounded-xl font-extrabold text-white shadow-sm text-lg" 
+              style={{ backgroundColor: safeBrandColor }}
+            >
+              {safeShopName.charAt(0).toUpperCase()}
+            </div>
+          )}
           <h1 className="font-extrabold text-xl tracking-tight text-slate-900">{safeShopName}</h1>
         </div>
 
@@ -505,7 +547,7 @@ function HeroCarousel({ products, brandColor, onBuyNow }) {
                   src={getImageUrl(prod.image1, BASE_URL)} 
                   alt={prod.designation} 
                   className="absolute right-0 top-0 h-full w-full md:w-2/3 object-cover opacity-60 md:opacity-95"
-                  onError={(e) => { e.target.src = "https://placehold.co/800x400?text=Produit" }}
+                  onError={(e) => { (e.target).src = "https://placehold.co/800x400?text=Produit" }}
                 />
               )}
 
@@ -690,20 +732,20 @@ function CartDrawer({
     <div className={`fixed inset-0 z-50 flex justify-end transition-opacity duration-300 ease-in-out ${
       isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
     }`}>
-      {/* Backdrop with fade transition */}
+      {/* Backdrop */}
       <div 
         className="absolute inset-0 bg-black/55 backdrop-blur-sm transition-opacity duration-300" 
         onClick={onClose} 
       />
 
-      {/* Drawer Body with smooth slide-in/out transition */}
+      {/* Drawer Body */}
       <div className={`bg-white w-full max-w-md h-full flex flex-col justify-between p-6 shadow-2xl relative overflow-y-auto transition-transform duration-300 ease-in-out transform ${
         isOpen ? "translate-x-0" : "translate-x-full"
       }`}>
         
         {/* Header */}
         <div className="flex justify-between items-center border-b border-slate-100 pb-4">
-          <h3 className="text-xl font-extrabold text-slate-950 flex items-center gap-2">
+          <h3 className="text-xl font-extrabold text-slate-955 flex items-center gap-2">
             <ShoppingBag className="h-5 w-5 text-slate-900" /> Votre Panier 
             <span className="text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-700">
               {cart.reduce((sum, item) => sum + item.quantity, 0)} articles
@@ -740,7 +782,7 @@ function CartDrawer({
                       src={getImageUrl(item.product.image1, BASE_URL)} 
                       className="w-14 h-14 rounded-2xl object-cover bg-slate-50 border border-slate-100"
                       alt={item.product.designation}
-                      onError={(e) => { e.target.src = "https://placehold.co/100x100" }}
+                      onError={(e) => { (e.target).src = "https://placehold.co/100x100" }}
                     />
                     <div className="space-y-0.5">
                       <h4 className="text-sm font-bold text-slate-800 line-clamp-1">{item.product.designation}</h4>
@@ -792,7 +834,7 @@ function CartDrawer({
                   required
                   value={nomClient}
                   onChange={(e) => setNomClient(e.target.value)}
-                  className="w-full px-4 py-3 bg-white border border-slate-150 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
+                  className="w-full px-4 py-3 bg-white border border-slate-150 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 text-slate-800"
                 />
 
                 <input 
@@ -801,7 +843,7 @@ function CartDrawer({
                   required
                   value={phoneClient}
                   onChange={(e) => setPhoneClient(e.target.value)}
-                  className="w-full px-4 py-3 bg-white border border-slate-150 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
+                  className="w-full px-4 py-3 bg-white border border-slate-150 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 text-slate-800"
                 />
 
                 <input 
@@ -810,107 +852,91 @@ function CartDrawer({
                   required
                   value={adresse}
                   onChange={(e) => setAdresse(e.target.value)}
-                  className="w-full px-4 py-3 bg-white border border-slate-150 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
+                  className="w-full px-4 py-3 bg-white border border-slate-150 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-300 text-slate-800"
                 />
 
                 <button
                   type="submit"
                   disabled={submitting}
                   style={{ backgroundColor: brandColor }}
-                  className="w-full py-4 rounded-2xl text-white font-extrabold text-sm shadow-md hover:opacity-95 transition-all duration-150 active:scale-95 flex items-center justify-center gap-2"
+                  className="w-full py-4 mt-2 rounded-2xl font-bold text-white text-sm hover:opacity-90 transition-all shadow-md active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  {submitting ? (
-                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  ) : (
-                    <>
-                      <span>Commander sur WhatsApp</span>
-                      <MessageCircle className="h-4 w-4" />
-                    </>
-                  )}
+                  <MessageCircle className="h-4 w-4" />
+                  {submitting ? "Validation de la commande..." : "Envoyer la commande via WhatsApp"}
+                </button>
+
+                {/* Bouton "Ajouter un autre produit" pour fermer simplement le panier */}
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="w-full py-3 mt-1.5 rounded-2xl font-bold text-slate-700 bg-white border border-slate-200 text-sm hover:bg-slate-100 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-sm"
+                >
+                  Ajouter un autre produit
                 </button>
               </form>
             </div>
           )}
         </div>
-
-        {/* Totalisateur fixe de panier */}
-        {cart.length > 0 && (
-          <div className="border-t border-slate-100 pt-4 bg-white space-y-1">
-            <div className="flex justify-between items-center font-bold text-slate-900">
-              <span className="text-sm text-slate-400">Total panier :</span>
-              <span className="text-2xl font-black" style={{ color: brandColor }}>
-                {numberFormat(montantTotal)} FCFA
-              </span>
-            </div>
-            <p className="text-[10px] text-slate-400 leading-tight">
-              *Les frais de livraison ne sont pas compris dans ce montant. Ils seront convenus en ligne avec le service de livraison sur WhatsApp.
-            </p>
-          </div>
-        )}
       </div>
     </div>
   )
 }
 
 // ==========================================
-// --- COMPOSANT : MODAL DETAILS PRODUIT (GALERIE INTERACTIVE)
+// --- COMPOSANT : MODAL DETAILS PRODUIT
 // ==========================================
-function ProductDetailModal({
-  isOpen, product, brandColor, onClose, onAddToCart
-}) {
-  const [activeImageIndex, setActiveImageIndex] = useState(0)
+function ProductDetailModal({ isOpen, product, brandColor, onClose, onAddToCart }) {
+  const [activeImage, setActiveImage] = useState("")
 
-  // Réinitialisation de l'image active lors du changement de produit
   useEffect(() => {
-    setActiveImageIndex(0)
+    if (product) {
+      const allUrls = getAllImageUrls(product.image1, BASE_URL)
+      setActiveImage(allUrls[0])
+    }
   }, [product])
 
   if (!isOpen || !product) return null
 
-  const images = getAllImageUrls(product.image1, BASE_URL)
   const isOutOfStock = product.quantite_stock <= 0
+  const allImages = getAllImageUrls(product.image1, BASE_URL)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-black/60 backdrop-blur-md transition-opacity animate-fade-in" 
-        onClick={onClose} 
-      />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Corps du modal */}
-      <div className="bg-white w-full max-w-3xl rounded-3xl overflow-hidden shadow-2xl relative z-10 flex flex-col md:flex-row max-h-[90vh] md:max-h-[80vh] transition-all duration-300">
+      {/* Modal Content */}
+      <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto relative z-10 shadow-2xl flex flex-col md:flex-row">
         
-        {/* Bouton de fermeture mobile & desktop */}
+        {/* Close button */}
         <button 
           onClick={onClose}
-          className="absolute top-4 right-4 h-10 w-10 rounded-full bg-slate-950/60 text-white hover:bg-slate-950 transition flex items-center justify-center z-20"
+          className="absolute top-4 right-4 z-20 h-9 w-9 rounded-full bg-white/85 shadow border border-slate-100 flex items-center justify-center text-slate-800 hover:bg-white transition"
         >
           ✕
         </button>
 
-        {/* Zone de gauche : Galerie Photo */}
-        <div className="w-full md:w-1/2 bg-slate-50 p-6 flex flex-col justify-between relative">
-          <div className="aspect-square w-full rounded-2xl overflow-hidden bg-white shadow-sm flex items-center justify-center">
+        {/* Gallery Section */}
+        <div className="w-full md:w-1/2 p-6 flex flex-col gap-4">
+          <div className="aspect-square bg-slate-50 rounded-2xl overflow-hidden border border-slate-100">
             <img 
-              src={images[activeImageIndex]} 
+              src={activeImage} 
               alt={product.designation} 
-              className="w-full h-full object-cover transition-all duration-500"
-              onError={(e) => { e.target.src = "https://placehold.co/600x600?text=Produit" }}
+              className="w-full h-full object-cover"
+              onError={(e) => { (e.target).src = "https://placehold.co/600x600?text=Produit" }}
             />
           </div>
 
-          {/* Miniatures de navigation (uniquement s'il y a plusieurs images) */}
-          {images.length > 1 && (
-            <div className="flex gap-2.5 overflow-x-auto pt-4 scrollbar-none snap-x">
-              {images.map((imgUrl, idx) => (
+          {/* Thumbnails list */}
+          {allImages.length > 1 && (
+            <div className="flex gap-2.5 overflow-x-auto pb-1">
+              {allImages.map((imgUrl, i) => (
                 <button
-                  key={idx}
-                  onClick={() => setActiveImageIndex(idx)}
-                  className={`h-14 w-14 rounded-xl overflow-hidden border-2 bg-white snap-start flex-shrink-0 transition-all ${
-                    idx === activeImageIndex ? "scale-105" : "opacity-60 hover:opacity-100"
+                  key={i}
+                  onClick={() => setActiveImage(imgUrl)}
+                  className={`h-14 w-14 rounded-xl overflow-hidden border-2 flex-shrink-0 transition ${
+                    activeImage === imgUrl ? "border-slate-800" : "border-transparent opacity-65 hover:opacity-100"
                   }`}
-                  style={{ borderColor: idx === activeImageIndex ? brandColor : "transparent" }}
                 >
                   <img src={imgUrl} className="w-full h-full object-cover" alt="" />
                 </button>
@@ -919,54 +945,44 @@ function ProductDetailModal({
           )}
         </div>
 
-        {/* Zone de droite : Informations Produit */}
-        <div className="w-full md:w-1/2 p-6 md:p-8 flex flex-col justify-between overflow-y-auto">
+        {/* Info Section */}
+        <div className="w-full md:w-1/2 p-6 flex flex-col justify-between">
           <div className="space-y-4">
-            <div className="flex justify-between items-start gap-4">
-              <h3 className="text-2xl font-black text-slate-900 tracking-tight leading-tight">
-                {product.designation}
-              </h3>
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Détails Article</span>
+              <h2 className="text-2xl font-extrabold text-slate-955 tracking-tight mt-1">{product.designation}</h2>
             </div>
 
-            <div className="flex items-center gap-3">
-              <span className="text-2xl font-black text-slate-950">
-                {numberFormat(product.prix_vente)} FCFA
-              </span>
-              
-              {product.quantite_stock <= 5 && product.quantite_stock > 0 && (
-                <span className="bg-amber-100 text-amber-700 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg">
-                  Plus que {product.quantite_stock} restants !
-                </span>
-              )}
+            <div className="text-2xl font-black text-slate-900">
+              {numberFormat(product.prix_vente)} FCFA
+            </div>
+
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Description</h4>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                {product.description || "Aucune description supplémentaire fournie pour cet article."}
+              </p>
             </div>
 
             <div className="pt-2">
-              <h4 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Description</h4>
-              <p className="text-sm text-slate-500 leading-relaxed max-h-[160px] overflow-y-auto">
-                {product.description || "Aucune description supplémentaire fournie pour cet article d'exception."}
-              </p>
+              <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-slate-100 text-slate-600">
+                Stock : {isOutOfStock ? "Rupture de stock" : `${product.quantite_stock} unités disponibles`}
+              </span>
             </div>
           </div>
 
-          <div className="pt-6 border-t border-slate-100 mt-6 space-y-4">
-            <div className="flex justify-between text-sm">
-              <span className="font-semibold text-slate-400">Disponibilité :</span>
-              <span className={`font-bold ${isOutOfStock ? "text-red-500" : "text-emerald-500"}`}>
-                {isOutOfStock ? "Épuisé" : `En stock (${product.quantite_stock} pièces)`}
-              </span>
-            </div>
-
+          <div className="pt-8">
             <button
               disabled={isOutOfStock}
               onClick={() => {
                 onAddToCart(product)
                 onClose()
               }}
-              style={{ backgroundColor: isOutOfStock ? "#cbd5e1" : brandColor }}
-              className="w-full py-4 rounded-2xl text-white font-extrabold text-sm shadow-md hover:opacity-95 transition-all duration-150 active:scale-95 flex items-center justify-center gap-2"
+              style={{ backgroundColor: isOutOfStock ? "#f1f5f9" : brandColor }}
+              className="w-full py-4 rounded-2xl font-bold text-white text-sm hover:opacity-95 transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:!text-slate-400"
             >
               <ShoppingBag className="h-4 w-4" />
-              <span>{isOutOfStock ? "Rupture de Stock" : "Ajouter au Panier"}</span>
+              {isOutOfStock ? "Rupture de stock" : "Ajouter au panier"}
             </button>
           </div>
         </div>
@@ -975,6 +991,67 @@ function ProductDetailModal({
   )
 }
 
-function numberFormat(num) {
-  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ")
+// ==========================================
+// --- COMPOSANT : FOOTER (STYLE BLEU NUIT SOMBRE)
+// ==========================================
+function Footer({ shopName, brandColor, logo, whatsapp }) {
+  const safeShopName = shopName || "Boutique"
+  const safeBrandColor = brandColor || "#10b981"
+  const formattedWhatsapp = whatsapp ? whatsapp.replace(/\D/g, "") : ""
+
+  return (
+    <footer className="bg-[#0f172a] text-slate-300 border-t border-slate-800 mt-24 py-12 px-6">
+      <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-8">
+        <div className="flex items-center gap-3">
+          {logo ? (
+            <img 
+              src={getImageUrl(logo, BASE_URL)} 
+              alt={safeShopName} 
+              className="h-12 w-12 object-cover rounded-2xl shadow-sm border border-slate-700"
+              onError={(e) => { (e.target).style.display = 'none'; }}
+            />
+          ) : (
+            <div 
+              className="h-12 w-12 flex items-center justify-center rounded-2xl font-black text-white shadow-sm text-xl" 
+              style={{ backgroundColor: safeBrandColor }}
+            >
+              {safeShopName.charAt(0).toUpperCase()}
+            </div>
+          )}
+          <div>
+            <h4 className="font-extrabold text-lg text-white leading-tight">{safeShopName}</h4>
+            <p className="text-xs text-slate-400 mt-0.5">Votre boutique en ligne de confiance</p>
+          </div>
+        </div>
+
+        {whatsapp && (
+          <a 
+            href={`https://wa.me/${formattedWhatsapp}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2.5 px-5 py-3 rounded-2xl bg-slate-800 text-white hover:bg-slate-700 border border-slate-700 font-bold text-sm transition active:scale-95 shadow-sm"
+          >
+            <MessageCircle className="h-5 w-5 text-emerald-400 fill-emerald-400/10" />
+            <span>Nous contacter sur WhatsApp</span>
+          </a>
+        )}
+      </div>
+      
+      <div className="max-w-6xl mx-auto border-t border-slate-800 mt-8 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400 font-medium">
+        <p>&copy; {new Date().getFullYear()} {safeShopName}. Tous droits réservés.</p>
+        <p className="flex items-center gap-1.5">
+          <span>Propulsé par</span>
+          <a 
+            href="https://easyjaay.com" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="font-extrabold text-slate-300 hover:text-white transition flex items-center gap-1"
+          >
+            <span className="h-4 w-4 bg-teal-600 text-white rounded flex items-center justify-center font-black text-[9px]">Ej</span>
+            <span>Easy Jaay</span>
+          </a>
+        </p>
+      </div>
+    </footer>
+  )
 }
