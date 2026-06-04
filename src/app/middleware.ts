@@ -3,10 +3,10 @@ import type { NextRequest } from 'next/server'
 
 export function middleware(request: NextRequest) {
   const url = request.nextUrl.clone()
-  const hostname = request.headers.get('host') || ''
-
-  // Ne rien faire pour les fichiers statiques ou l'API
+  
+  // Si on est à la racine ou sur des chemins système, on laisse passer
   if (
+    url.pathname === '/' ||
     url.pathname.startsWith('/_next') || 
     url.pathname.startsWith('/api') ||
     url.pathname.includes('.')
@@ -14,16 +14,11 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Si on est sur le domaine principal, on laisse Next.js gérer
-  if (hostname === 'easyjaay.baobapp.tech' || hostname === 'localhost:3000') {
-    return NextResponse.next()
-  }
+  // Ici, vous récupérez le slug (ex: "sokhna-cosmetiques")
+  const pathParts = url.pathname.split('/')
+  const boutiqueSlug = pathParts[1] // Le premier segment après le "/"
 
-  // Extraction du sous-domaine (ex: client1.easyjaay.baobapp.tech -> client1)
-  const subdomain = hostname.split('.')[0]
-
-  // On réécrit l'URL en interne pour aller dans le dossier [subdomain]
-  url.pathname = `/${subdomain}${url.pathname}`
-  
-  return NextResponse.rewrite(url)
+  // Vous pouvez ajouter ici une logique pour vérifier si le slug est valide
+  // Mais pour l'instant, laissez Next.js diriger vers le dossier [boutique]
+  return NextResponse.next()
 }
