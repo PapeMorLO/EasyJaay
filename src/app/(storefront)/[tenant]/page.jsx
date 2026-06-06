@@ -11,6 +11,7 @@ import {
   Clock, 
   MapPin, 
   MessageCircle,
+  TriangleAlert
 } from "lucide-react"
 
 // URL de votre serveur de production ou local
@@ -1043,8 +1044,8 @@ function ProductDetailModal({ isOpen, product, brandColor, onClose, onAddToCart 
         {/* Bouton de fermeture mobile & desktop */}
         <button 
           onClick={onClose}
-          className="absolute top-4 right-4 h-10 w-10 rounded-full bg-slate-955/60 text-white hover:bg-slate-955 transition flex items-center justify-center z-20"
-        >
+          className="absolute top-6 right-6 h-10 w-10 bg-slate-50 border border-slate-100 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+            >
           ✕
         </button>
 
@@ -1175,7 +1176,7 @@ function ProductDetailModal({ isOpen, product, brandColor, onClose, onAddToCart 
             {/* Message d'erreur dynamique */}
             {errorMsg && (
               <div className="p-2.5 bg-red-50 text-red-600 text-xs font-semibold rounded-xl border border-red-100 animate-pulse">
-                ⚠️ {errorMsg}
+                <TriangleAlert className="text-xs" /> {errorMsg}
               </div>
             )}
           </div>

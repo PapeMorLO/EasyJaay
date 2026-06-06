@@ -12,7 +12,7 @@ import {
   Store,
   ShieldCheck,
   Smartphone,
-
+  TriangleAlert, 
   Loader2,
   Settings,
   Eye
@@ -234,7 +234,7 @@ export default function LandingPage() {
 
                 {errorMessage && (
                   <div className="p-4 bg-red-50 border border-red-100 rounded-2xl text-red-700 text-sm font-semibold">
-                    ⚠️ {errorMessage}
+                    <TriangleAlert /> {errorMessage}
                   </div>
                 )}
 
