@@ -18,6 +18,9 @@ import {
   Eye
 } from "lucide-react"
 
+import Image from 'next/image';
+import logo from '@/public/icon.png';
+
 // URL de ton Laragon locale
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -114,9 +117,11 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-2.5">
             <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-teal-600 text-white font-black text-xl shadow-md shadow-teal-100">
-              Ej
+                <Image src="/images/icon.png" width={80} height={50}   alt="Logo de mon entreprise" priority />
             </div>
-            <span className="font-extrabold text-xl tracking-tight text-slate-950">Easy <span className="text-teal-600 font-bold">Jaay</span></span>
+            <span className="font-extrabold text-xl tracking-tight text-slate-950">
+            
+            </span>
           </div>
 
           <button 
@@ -136,6 +141,7 @@ export default function LandingPage() {
             <Sparkles className="h-3.5 w-3.5" />
              E-commerce locale
           </span>
+        
           
           <h1 className="text-4xl md:text-6xl font-black text-slate-950 tracking-tight leading-tight max-w-4xl mx-auto">
             Vendez sur le web. <br />
@@ -374,8 +380,8 @@ export default function LandingPage() {
                     className="p-5 bg-white border border-slate-200 rounded-2xl hover:border-teal-500 hover:bg-teal-50/20 transition flex flex-col items-center gap-3 text-center group"
                   >
                     <Eye className="h-6 w-6 text-teal-600" />
-                    <span className="font-extrabold text-sm text-slate-800">Voir ma vitrine</span>
-                    <span className="text-xs text-slate-400 font-mono">/{slug}</span>
+                    <span className="font-extrabold text-sm text-slate-800">Voir mon site E-commerce</span>
+                    <span className="text-xs text-slate-400 font-mono">https://easyjaay.baobapp.tech/{slug}</span>
                   </a>
 
                   <a 
@@ -384,8 +390,8 @@ export default function LandingPage() {
                     className="p-5 bg-white border border-slate-200 rounded-2xl hover:border-teal-500 hover:bg-teal-50/20 transition flex flex-col items-center gap-3 text-center group"
                   >
                     <Settings className="h-6 w-6 text-teal-600" />
-                    <span className="font-extrabold text-sm text-slate-800">Espace admin</span>
-                    <span className="text-xs text-slate-400 font-mono">Filament</span>
+                    <span className="font-extrabold text-sm text-slate-800">Consulter ma page adminstration : </span>
+                    <span className="text-xs text-slate-400 font-mono">https://easyjaayback.baobapp.tech/admin/login</span>
                   </a>
                 </div>
               </div>
