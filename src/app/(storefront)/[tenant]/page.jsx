@@ -11,7 +11,10 @@ import {
   Clock, 
   MapPin, 
   MessageCircle,
-  TriangleAlert
+  TriangleAlert,
+  Truck,
+  Layers,
+  Palette,
 } from "lucide-react"
 
 // URL de votre serveur de production ou local
@@ -113,13 +116,14 @@ export default function StorefrontPage({ params }) {
         
         let normalizedShop = null
 
-        // Prise en charge des différentes enveloppes d'API
+        // Prise en charge des différentes enveloppes d'API et extraction du type de livraison
         if (data && data.shop) {
           normalizedShop = {
             raison_sociale: data.shop.raison_sociale || data.shop.nom || "Ma Boutique",
             couleur_theme: data.shop.couleur_theme || data.shop.theme || "#10b981",
             contact_whatsapp: data.shop.contact_whatsapp || data.shop.whatsapp || "",
             logo: data.shop.logo || data.logo || null,
+            type_livraison: data.shop.type_livraison || "selon_zone", // Intégration de la livraison
             produits: data.produits || data.shop.produits || []
           }
         } else if (data && data.data) {
@@ -128,6 +132,7 @@ export default function StorefrontPage({ params }) {
             couleur_theme: data.data.couleur_theme || data.data.theme || "#10b981",
             contact_whatsapp: data.data.contact_whatsapp || data.data.whatsapp || "",
             logo: data.data.logo || data.logo || null,
+            type_livraison: data.data.type_livraison || "selon_zone",
             produits: data.data.produits || data.data.products || []
           }
         } else if (data) {
@@ -136,6 +141,7 @@ export default function StorefrontPage({ params }) {
             couleur_theme: data.couleur_theme || data.theme || "#10b981",
             contact_whatsapp: data.contact_whatsapp || data.whatsapp || "",
             logo: data.logo || null,
+            type_livraison: data.type_livraison || "selon_zone",
             produits: data.produits || data.products || []
           }
         }
@@ -199,6 +205,7 @@ export default function StorefrontPage({ params }) {
   const resolvedWhatsapp = shop.contact_whatsapp
   const resolvedProducts = shop.produits
   const resolvedLogo = shop.logo
+  const resolvedTypeLivraison = shop.type_livraison
 
   // Parser les options JSON reçues de la BDD pour vérifier la présence d'attributs
   const parseOption = (optionField) => {
@@ -318,7 +325,6 @@ export default function StorefrontPage({ params }) {
         id: item.product.id,
         quantite: item.quantity,
         prix_unitaire: item.product.prix_vente,
-        // On passe les options choisies dans la commande si votre API Laravel s'adapte à les stocker
         selected_size: item.product.selectedSize || null,
         selected_color: item.product.selectedColor || null,
       })),
@@ -341,11 +347,12 @@ export default function StorefrontPage({ params }) {
         console.warn("Laravel server returned an error, proceeding directly to WhatsApp checkout.")
       }
 
-      // Construction du message WhatsApp dynamique avec intégration des Tailles et Couleurs
+      // Construction du message WhatsApp dynamique avec intégration des Tailles, Couleurs et Mode de livraison
       let messageText = `*Nouvelle commande sur la boutique ${resolvedShopName}*\n\n`
       messageText += `👤 *Client :* ${nomClient}\n`
       messageText += `📞 *Téléphone :* ${phoneClient}\n`
-      messageText += `📍 *Livraison :* ${adresse}\n\n`
+      messageText += `📍 *Livraison :* ${adresse}\n`
+      messageText += `🚚 *Mode de livraison :* ${resolvedTypeLivraison === 'gratuit' ? 'Gratuite (Offerte !)' : 'Selon zone (à convenir)'}\n\n`
       messageText += `🛒 *Articles commandés :*\n`
       
       cart.forEach((item) => {
@@ -403,6 +410,19 @@ export default function StorefrontPage({ params }) {
         </div>
       )}
 
+      {/* NOVEAU : Bandeau d'annonce Livraison tout en haut */}
+      <div 
+        style={{ backgroundColor: brandColor }}
+        className="w-full text-white py-2 text-center text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm px-4"
+      >
+        <Truck className="h-4 w-4 animate-bounce" />
+        {resolvedTypeLivraison === 'gratuit' ? (
+          <span className="inline-block">La livraison est offerte !</span>
+        ) : (
+          <span> Livraison rapide disponible partout (frais selon votre zone)</span>
+        )}
+      </div>
+
       {/* 1. COMPOSANT : HEADER */}
       <Header 
         shopName={resolvedShopName} 
@@ -451,6 +471,7 @@ export default function StorefrontPage({ params }) {
                 brandColor={brandColor} 
                 onAddToCart={addToCart} 
                 onOpenDetails={setSelectedProduct}
+                parseOption={parseOption}
               />
             ))}
           </div>
@@ -467,6 +488,7 @@ export default function StorefrontPage({ params }) {
         phoneClient={phoneClient}
         adresse={adresse}
         submitting={submitting}
+        typeLivraison={resolvedTypeLivraison}
         onClose={() => setIsCartOpen(false)}
         onUpdateQuantity={updateQuantity}
         onRemove={removeFromCart}
@@ -483,6 +505,7 @@ export default function StorefrontPage({ params }) {
         brandColor={brandColor}
         onClose={() => setSelectedProduct(null)}
         onAddToCart={addToCart}
+        typeLivraison={resolvedTypeLivraison}
       />
 
       {/* 7. COMPOSANT : FOOTER */}
@@ -578,7 +601,7 @@ function HeroCarousel({ products, brandColor, onBuyNow }) {
 
   return (
     <section className="px-4 mt-6 max-w-6xl mx-auto">
-      <div className="relative h-[320px] md:h-[400px] w-full rounded-3xl overflow-hidden bg-slate-950 text-white shadow-xl shadow-slate-100">
+      <div className="relative h-[320px] md:h-[400px] w-full rounded-3xl overflow-hidden bg-slate-955 text-white shadow-xl shadow-slate-100">
         
         {/* Background Overlay */}
         <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/45 to-transparent z-10" />
@@ -597,7 +620,7 @@ function HeroCarousel({ products, brandColor, onBuyNow }) {
                   src={getImageUrl(prod.image1, BASE_URL)} 
                   alt={prod.designation} 
                   className="absolute right-0 top-0 h-full w-full md:w-2/3 object-cover opacity-60 md:opacity-95"
-                  onError={(e) => { (e.target).src = "https://placehold.co/800x400?text=Produit" }}
+                  onError={(e) => { e.target.src = "https://placehold.co/800x400?text=Produit" }}
                 />
               )}
 
@@ -698,14 +721,18 @@ function CategoryFilters({ activeFilter, brandColor, onSelectFilter }) {
 // ==========================================
 // --- COMPOSANT : CARTE PRODUIT
 // ==========================================
-function ProductCard({ product, brandColor, onAddToCart, onOpenDetails }) {
+function ProductCard({ product, brandColor, onAddToCart, onOpenDetails, parseOption }) {
   const isOutOfStock = product.quantite_stock <= 0
   const isLowStock = product.quantite_stock > 0 && product.quantite_stock <= 5
   
+  // Analyse des options pour affichage de petits badges sur les fiches produits
+  const hasSizes = parseOption(product.taille_dimension).length > 0;
+  const hasColors = parseOption(product.color).length > 0;
+
   return (
     <div 
       onClick={() => !isOutOfStock && onOpenDetails(product)}
-      className="group bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl hover:border-slate-200 transition-all duration-300 flex flex-col justify-between cursor-pointer"
+      className="group bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl hover:border-slate-200 transition-all duration-300 flex flex-col justify-between cursor-pointer relative"
     >
       
       {/* Dynamic Image Wrapper */}
@@ -731,12 +758,28 @@ function ProductCard({ product, brandColor, onAddToCart, onOpenDetails }) {
             </span>
           </div>
         )}
+
+        {/* NOUVEAU : Petites pastilles d'options disponibles en bas de l'image */}
+        {!isOutOfStock && (hasSizes || hasColors) && (
+          <div className="absolute bottom-2 left-2 flex gap-1 z-10">
+            {hasSizes && (
+              <span className="bg-white/90 backdrop-blur-sm text-[9px] font-bold text-slate-800 px-2 py-0.5 rounded-md flex items-center gap-1 shadow-sm border border-slate-100">
+                <Layers className="h-2.5 w-2.5 text-slate-500" /> Choix tailles
+              </span>
+            )}
+            {hasColors && (
+              <span className="bg-white/90 backdrop-blur-sm text-[9px] font-bold text-slate-800 px-2 py-0.5 rounded-md flex items-center gap-1 shadow-sm border border-slate-100">
+                <Palette className="h-2.5 w-2.5 text-slate-500" /> Couleur
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Description Block */}
       <div className="p-4 flex flex-col justify-between flex-grow">
         <div className="space-y-1">
-          <h4 className="font-bold text-slate-800 text-sm md:text-base line-clamp-1 group-hover:text-slate-950 transition-colors">
+          <h4 className="font-bold text-slate-800 text-sm md:text-base line-clamp-1 group-hover:text-slate-955 transition-colors">
             {product.designation}
           </h4>
           <p className="text-xs text-slate-400 line-clamp-2 min-h-[32px]">
@@ -775,7 +818,7 @@ function ProductCard({ product, brandColor, onAddToCart, onOpenDetails }) {
 // --- COMPOSANT : TIROIR PANIER & CHECKOUT
 // ==========================================
 function CartDrawer({
-  isOpen, cart, montantTotal, brandColor, nomClient, phoneClient, adresse, submitting,
+  isOpen, cart, montantTotal, brandColor, nomClient, phoneClient, adresse, submitting, typeLivraison,
   onClose, onUpdateQuantity, onRemove, setNomClient, setPhoneClient, setAdresse, onSubmit
 }) {
   return (
@@ -892,8 +935,27 @@ function CartDrawer({
                 )
               })}
 
+              {/* SECTION LIVRAISON DYNAMIQUE DANS LE TIROIR PANIER */}
+              <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl mb-4 mt-6">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-white rounded-xl shadow-sm text-slate-600 mt-0.5">
+                    <MapPin className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h5 className="text-sm font-bold text-slate-900">Information livraison</h5>
+                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                      {typeLivraison === 'gratuit' ? (
+                        <span className="text-emerald-600 font-semibold"><Sparkles /> Livraison est offerte par la boutique !</span>
+                      ) : (
+                        <span><Truck />Les frais de livraison dépendent de votre zone et seront convenus avec le vendeur lors de la validation.</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               {/* Formulaire de livraison minimaliste */}
-              <form onSubmit={onSubmit} className="bg-slate-50 border border-slate-100 rounded-3xl p-4 mt-6 space-y-3 shadow-inner">
+              <form onSubmit={onSubmit} className="bg-slate-50 border border-slate-100 rounded-3xl p-4 space-y-3 shadow-inner">
                 <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
                   <MapPin className="h-3.5 w-3.5 text-slate-400" /> Adresse pour la livraison
                 </h4>
@@ -928,8 +990,8 @@ function CartDrawer({
                 <button
                   type="submit"
                   disabled={submitting}
-                  style={{ backgroundColor: brandColor }}
                   className="w-full py-4 mt-2 rounded-2xl font-bold text-white text-sm hover:opacity-90 transition-all shadow-md active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                  style={{ backgroundColor: brandColor }}
                 >
                   <MessageCircle className="h-4 w-4" />
                   {submitting ? "Validation de la commande..." : "Envoyer la commande via WhatsApp"}
@@ -958,7 +1020,11 @@ function CartDrawer({
               </span>
             </div>
             <p className="text-[10px] text-slate-400 leading-tight">
-              *Les frais de livraison ne sont pas compris dans ce montant. Ils seront convenus en ligne avec le service de livraison sur WhatsApp.
+              {typeLivraison === 'gratuit' ? (
+                <span>*La livraison est entièrement gratuite sur toutes vos commandes !</span>
+              ) : (
+                <span>*Les frais de livraison ne sont pas compris dans ce montant. Ils seront convenus en ligne avec le service de livraison sur WhatsApp.</span>
+              )}
             </p>
           </div>
         )}
@@ -970,7 +1036,7 @@ function CartDrawer({
 // ==========================================
 // --- COMPOSANT : MODAL DETAILS PRODUIT (AVEC ATTRIBUTS DÉCLINABLES)
 // ==========================================
-function ProductDetailModal({ isOpen, product, brandColor, onClose, onAddToCart }) {
+function ProductDetailModal({ isOpen, product, brandColor, onClose, onAddToCart, typeLivraison }) {
   const [activeImageIndex, setActiveImageIndex] = useState(0)
   const [selectedColor, setSelectedColor] = useState("")
   const [selectedSize, setSelectedSize] = useState("")
@@ -1013,11 +1079,11 @@ function ProductDetailModal({ isOpen, product, brandColor, onClose, onAddToCart 
 
   const handleAddToCart = () => {
     if (hasSizes && !selectedSize) {
-      setErrorMsg("Veuillez sélectionner une taille / pointure.")
+      setErrorMsg("Veuillez sélectionner une taille / pointure.");
       return
     }
     if (hasColors && !selectedColor) {
-      setErrorMsg("Veuillez sélectionner une couleur.")
+      setErrorMsg("Veuillez sélectionner une couleur.");
       return
     }
 
@@ -1045,7 +1111,7 @@ function ProductDetailModal({ isOpen, product, brandColor, onClose, onAddToCart 
         <button 
           onClick={onClose}
           className="absolute top-6 right-6 h-10 w-10 bg-slate-50 border border-slate-100 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
-            >
+        >
           ✕
         </button>
 
@@ -1102,7 +1168,7 @@ function ProductDetailModal({ isOpen, product, brandColor, onClose, onAddToCart 
 
             <div className="pt-2">
               <h4 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Description</h4>
-              <p className="text-sm text-slate-500 leading-relaxed max-h-[140px] overflow-y-auto">
+              <p className="text-sm text-slate-500 leading-relaxed max-h-[140px] overflow-y-auto scrollbar-thin">
                 {product.description || "Aucune description supplémentaire fournie pour cet article."}
               </p>
             </div>
@@ -1173,10 +1239,22 @@ function ProductDetailModal({ isOpen, product, brandColor, onClose, onAddToCart 
               )}
             </div>
 
+            {/* NOUVEAU : Information de livraison affichée dans la fiche produit détaillée */}
+            <div className="bg-slate-50 border border-slate-100 p-3 rounded-xl flex items-center gap-2.5 text-xs text-slate-600 mt-2">
+              <Truck className="h-4 w-4 text-slate-500 shrink-0" />
+              <div>
+                {typeLivraison === 'gratuit' ? (
+                  <span>🚀 <span className="font-bold text-emerald-600">Livraison offerte</span> sur cet article et toute la boutique !</span>
+                ) : (
+                  <span>🚚 <span className="font-bold text-slate-800">Livraison rapide</span> : Tarif calculé selon votre zone lors de la commande.</span>
+                )}
+              </div>
+            </div>
+
             {/* Message d'erreur dynamique */}
             {errorMsg && (
-              <div className="p-2.5 bg-red-50 text-red-600 text-xs font-semibold rounded-xl border border-red-100 animate-pulse">
-                <TriangleAlert className="text-xs" /> {errorMsg}
+              <div className="p-2.5 bg-red-50 text-red-600 text-xs font-semibold rounded-xl border border-red-100 animate-pulse flex items-center gap-1.5">
+                <TriangleAlert className="text-xs h-4 w-4" /> {errorMsg}
               </div>
             )}
           </div>
@@ -1261,7 +1339,7 @@ function Footer({ shopName, brandColor, logo, whatsapp }) {
             rel="noopener noreferrer"
             className="font-extrabold text-slate-300 hover:text-white transition flex items-center gap-1"
           >
-            <span className="h-4 w-4 bg-teal-600 text-white rounded flex items-center justify-center font-black text-[9px]"><img src="/icon.png"/> </span>
+            <span className="h-4 w-4 bg-teal-600 text-white rounded flex items-center justify-center font-black text-[9px]">Ej</span>
             <span>Easy Jaay</span>
           </a>
         </p>
