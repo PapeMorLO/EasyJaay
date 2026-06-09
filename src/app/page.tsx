@@ -144,8 +144,8 @@ export default function LandingPage() {
         
           
           <h1 className="text-4xl md:text-6xl font-black text-slate-950 tracking-tight leading-tight max-w-4xl mx-auto">
-            Vendez sur le web. <br />
-            Livrables et gérés par <span className="text-teal-600">WhatsApp</span>
+            Vendez en ligne. <br />
+            Gérez le reste par <span className="text-teal-600">WhatsApp</span>
           </h1>
 
           <p className="text-lg md:text-xl text-slate-500 max-w-2xl mx-auto font-medium leading-relaxed">

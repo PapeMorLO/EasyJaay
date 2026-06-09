@@ -304,89 +304,88 @@ export default function StorefrontPage({ params }) {
   const filteredProducts = getFilteredProducts()
 
   const handleCheckout = async (e) => {
-    e.preventDefault()
-    if (cart.length === 0 || submitting) return
+  e.preventDefault()
+  if (cart.length === 0 || submitting) return
 
-    if (!resolvedWhatsapp) {
-      showToast("Numéro WhatsApp non configuré pour cette boutique.")
-      return
-    }
-
-    setSubmitting(true)
-
-    // Envoi de la commande vers Laravel API
-    const payload = {
-      entreprise_slug: tenant,
-      nom_client: nomClient,
-      phone_client: phoneClient,
-      adresse_livraison: adresse,
-      montant_total: montantTotal,
-      produits: cart.map((item) => ({
-        id: item.product.id,
-        quantite: item.quantity,
-        prix_unitaire: item.product.prix_vente,
-        selected_size: item.product.selectedSize || null,
-        selected_color: item.product.selectedColor || null,
-      })),
-    }
-
-    try {
-      const res = await fetch(`${BASE_URL}/api/commandes`, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "Accept": "application/json"
-        },
-        body: JSON.stringify(payload),
-      }).catch((err) => {
-        console.warn("Local DB storage bypassed. Proceeding to WhatsApp directly:", err)
-        return null
-      })
-
-      if (res && !res.ok) {
-        console.warn("Laravel server returned an error, proceeding directly to WhatsApp checkout.")
-      }
-
-      // Construction du message WhatsApp dynamique avec intégration des Tailles, Couleurs et Mode de livraison
-      let messageText = `*Nouvelle commande sur la boutique ${resolvedShopName}*\n\n`
-      messageText += `👤 *Client :* ${nomClient}\n`
-      messageText += `📞 *Téléphone :* ${phoneClient}\n`
-      messageText += `📍 *Livraison :* ${adresse}\n`
-      messageText += `🚚 *Mode de livraison :* ${resolvedTypeLivraison === 'gratuit' ? 'Gratuite (Offerte !)' : 'Selon zone (à convenir)'}\n\n`
-      messageText += `🛒 *Articles commandés :*\n`
-      
-      cart.forEach((item) => {
-        const optionDetails = []
-        if (item.product.selectedSize) optionDetails.push(`Taille: ${item.product.selectedSize}`)
-        if (item.product.selectedColor) optionDetails.push(`Couleur: ${item.product.selectedColor}`)
-        
-        const optionString = optionDetails.length > 0 ? ` [${optionDetails.join(", ")}]` : ""
-        
-        messageText += `- *${item.quantity}x* ${item.product.designation}${optionString} (${numberFormat(item.product.prix_vente * item.quantity)} FCFA)\n`
-      })
-      
-      messageText += `\n💵 *TOTAL : ${numberFormat(montantTotal)} FCFA*`
-
-      const formattedWhatsapp = resolvedWhatsapp.replace(/\D/g, "")
-      const urlWhatsApp = `https://wa.me/${formattedWhatsapp}?text=${encodeURIComponent(messageText)}`
-      
-      window.open(urlWhatsApp, "_blank")
-
-      setCart([])
-      localStorage.removeItem(`cart_${tenant}`)
-      setIsCartOpen(false)
-      setNomClient("")
-      setPhoneClient("")
-      setAdresse("")
-      showToast("Commande validée ! Redirection vers WhatsApp...")
-
-    } catch (err) {
-      console.error("Global order workflow crashed:", err)
-      showToast("Une erreur est survenue, veuillez réessayer.")
-    } finally {
-      setSubmitting(false)
-    }
+  if (!resolvedWhatsapp) {
+    showToast("Numéro WhatsApp non configuré pour cette boutique.")
+    return
   }
+
+  setSubmitting(true)
+
+  // 1. Préparation des données pour la commande
+  const payload = {
+    entreprise_slug: tenant,
+    nom_client: nomClient,
+    phone_client: phoneClient,
+    adresse_livraison: adresse,
+    montant_total: montantTotal,
+    produits: cart.map((item) => ({
+      id: item.product.id,
+      quantite: item.quantity,
+      prix_unitaire: item.product.prix_vente,
+      selected_size: item.product.selectedSize || null,
+      selected_color: item.product.selectedColor || null,
+    })),
+  }
+
+  // 2. Construction du message WhatsApp en avance (au cas où l'API Laravel met du temps)
+  let messageText = `*Nouvelle commande sur la boutique ${resolvedShopName}*\n\n`
+  messageText += `👤 *Client :* ${nomClient}\n`
+  messageText += `📞 *Téléphone :* ${phoneClient}\n`
+  messageText += `📍 *Livraison :* ${adresse}\n`
+  messageText += `🚚 *Mode de livraison :* ${resolvedTypeLivraison === 'gratuit' ? 'Gratuite (Offerte !)' : 'Selon zone (à convenir)'}\n\n`
+  messageText += `🛒 *Articles commandés :*\n`
+  
+  cart.forEach((item) => {
+    const optionDetails = []
+    if (item.product.selectedSize) optionDetails.push(`Taille: ${item.product.selectedSize}`)
+    if (item.product.selectedColor) optionDetails.push(`Couleur: ${item.product.selectedColor}`)
+    const optionString = optionDetails.length > 0 ? ` [${optionDetails.join(", ")}]` : ""
+    
+    messageText += `- *${item.quantity}x* ${item.product.designation}${optionString} (${numberFormat(item.product.prix_vente * item.quantity)} FCFA)\n`
+  })
+  
+  messageText += `\n💵 *TOTAL : ${numberFormat(montantTotal)} FCFA*`
+
+  const formattedWhatsapp = resolvedWhatsapp.replace(/\D/g, "")
+  const urlWhatsApp = `https://wa.me/${formattedWhatsapp}?text=${encodeURIComponent(messageText)}`
+
+  try {
+    // 3. On tente d'enregistrer en BDD chez Laravel en arrière-plan
+    // On met un timeout ou on laisse filer pour ne pas bloquer le client si l'API est lente
+    await fetch(`${BASE_URL}/api/commandes`, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
+      body: JSON.stringify(payload),
+    }).catch((err) => {
+      console.warn("Erreur BDD ignorée pour privilégier WhatsApp:", err)
+    })
+
+    // 4. NETTOYAGE DU PANIER LOCAL AVANT DE QUITTER
+    setCart([])
+    localStorage.removeItem(`cart_${tenant}`)
+    setIsCartOpen(false)
+    setNomClient("")
+    setPhoneClient("")
+    setAdresse("")
+    
+    // 5. REDIRECTION SANS POPUP BLOQUÉ
+    // window.location.href contourne à 100% le bloqueur de popup car on ne crée pas de nouvelle fenêtre
+    window.location.href = urlWhatsApp
+
+  } catch (err) {
+    console.error("Erreur lors du checkout:", err)
+    // En cas de gros bug, on force quand même la redirection WhatsApp pour ne pas perdre la vente !
+    window.location.href = urlWhatsApp
+  } finally {
+    setSubmitting(false)
+  }
+}
 
   return (
     <div className="min-h-screen bg-slate-50 pb-0 selection:bg-slate-200 antialiased font-sans relative">
