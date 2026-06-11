@@ -148,6 +148,17 @@ export default function StorefrontPage({ params }) {
 
         setShop(normalizedShop)
 
+        // TRACKING DE VISITE DE LA BOUTIQUE (sans doublons par session client)
+        const trackKey = `tracked_shop_${tenant}`
+        if (!sessionStorage.getItem(trackKey)) {
+          fetch(`${BASE_URL}/api/shops/${tenant}/increment-view`, {
+            method: "POST",
+            keepalive: true,
+          })
+            .then(() => sessionStorage.setItem(trackKey, "true"))
+            .catch((err) => console.warn("Erreur d'enregistrement de la visite boutique :", err))
+        }
+
         // Récupération du panier local
         const savedCart = localStorage.getItem(`cart_${tenant}`)
         if (savedCart) {
@@ -177,11 +188,23 @@ export default function StorefrontPage({ params }) {
     setTimeout(() => setToastMessage(null), 3000)
   }
 
+  // Fonction d'ouverture d'un produit avec incrémentation des statistiques de consultation
+  const handleOpenProductDetails = (product) => {
+    setSelectedProduct(product)
+
+    // TRACKING DU PRODUIT LE PLUS VISITÉ
+    fetch(`${BASE_URL}/api/products/${product.id}/increment-view`, {
+      method: "POST",
+      keepalive: true,
+    }).catch((err) => console.warn("Erreur d'enregistrement de la visite produit :", err))
+  }
+
   if (loading || !tenant) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-50">
         <div className="relative flex h-16 w-16 items-center justify-center">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-950 opacity-15"></span>
+          {/* MODIFICATION : Animation de chargement beaucoup plus lumineuse et visible (Teal/Turquoise éclatant) */}
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-900 opacity-25"></span>
           <div className="animate-spin rounded-full h-10 w-10 border-4 border-slate-950 border-t-transparent"></div>
         </div>
       </div>
@@ -228,7 +251,7 @@ export default function StorefrontPage({ params }) {
     // S'il y a des options (couleurs ou tailles) et que l'utilisateur clique sur l'ajout rapide (+),
     // on ouvre le modal de détails pour qu'il choisisse obligatoirement ses options
     if ((availableSizes.length > 0 && !product.selectedSize) || (availableColors.length > 0 && !product.selectedColor)) {
-      setSelectedProduct(product)
+      handleOpenProductDetails(product)
       return
     }
 
@@ -304,88 +327,85 @@ export default function StorefrontPage({ params }) {
   const filteredProducts = getFilteredProducts()
 
   const handleCheckout = async (e) => {
-  e.preventDefault()
-  if (cart.length === 0 || submitting) return
+    e.preventDefault()
+    if (cart.length === 0 || submitting) return
 
-  if (!resolvedWhatsapp) {
-    showToast("Numéro WhatsApp non configuré pour cette boutique.")
-    return
-  }
+    if (!resolvedWhatsapp) {
+      showToast("Numéro WhatsApp non configuré pour cette boutique.")
+      return
+    }
 
-  setSubmitting(true)
+    setSubmitting(true)
 
-  // 1. Préparation des données pour la commande
-  const payload = {
-    entreprise_slug: tenant,
-    nom_client: nomClient,
-    phone_client: phoneClient,
-    adresse_livraison: adresse,
-    montant_total: montantTotal,
-    produits: cart.map((item) => ({
-      id: item.product.id,
-      quantite: item.quantity,
-      prix_unitaire: item.product.prix_vente,
-      selected_size: item.product.selectedSize || null,
-      selected_color: item.product.selectedColor || null,
-    })),
-  }
+    // 1. Préparation des données pour la commande
+    const payload = {
+      entreprise_slug: tenant,
+      nom_client: nomClient,
+      phone_client: phoneClient,
+      adresse_livraison: adresse,
+      montant_total: montantTotal,
+      produits: cart.map((item) => ({
+        id: item.product.id,
+        quantite: item.quantity,
+        prix_unitaire: item.product.prix_vente,
+        selected_size: item.product.selectedSize || null,
+        selected_color: item.product.selectedColor || null,
+      })),
+    }
 
-  // 2. Construction du message WhatsApp en avance (au cas où l'API Laravel met du temps)
-  let messageText = `*Nouvelle commande sur la boutique ${resolvedShopName}*\n\n`
-  messageText += `👤 *Client :* ${nomClient}\n`
-  messageText += `📞 *Téléphone :* ${phoneClient}\n`
-  messageText += `📍 *Livraison :* ${adresse}\n`
-  messageText += `🚚 *Mode de livraison :* ${resolvedTypeLivraison === 'gratuit' ? 'Gratuite (Offerte !)' : 'Selon zone (à convenir)'}\n\n`
-  messageText += `🛒 *Articles commandés :*\n`
-  
-  cart.forEach((item) => {
-    const optionDetails = []
-    if (item.product.selectedSize) optionDetails.push(`Taille: ${item.product.selectedSize}`)
-    if (item.product.selectedColor) optionDetails.push(`Couleur: ${item.product.selectedColor}`)
-    const optionString = optionDetails.length > 0 ? ` [${optionDetails.join(", ")}]` : ""
+    // 2. Construction du message WhatsApp en avance (au cas où l'API Laravel met du temps)
+    let messageText = `*Nouvelle commande sur la boutique ${resolvedShopName}*\n\n`
+    messageText += `👤 *Client :* ${nomClient}\n`
+    messageText += `📞 *Téléphone :* ${phoneClient}\n`
+    messageText += `📍 *Livraison :* ${adresse}\n`
+    messageText += `🚚 *Mode de livraison :* ${resolvedTypeLivraison === 'gratuit' ? 'Gratuite (Offerte !)' : 'Selon zone (à convenir)'}\n\n`
+    messageText += `🛒 *Articles commandés :*\n`
     
-    messageText += `- *${item.quantity}x* ${item.product.designation}${optionString} (${numberFormat(item.product.prix_vente * item.quantity)} FCFA)\n`
-  })
-  
-  messageText += `\n💵 *TOTAL : ${numberFormat(montantTotal)} FCFA*`
-
-  const formattedWhatsapp = resolvedWhatsapp.replace(/\D/g, "")
-  const urlWhatsApp = `https://wa.me/${formattedWhatsapp}?text=${encodeURIComponent(messageText)}`
-
-  try {
-    // 3. On tente d'enregistrer en BDD chez Laravel en arrière-plan
-    // On met un timeout ou on laisse filer pour ne pas bloquer le client si l'API est lente
-    await fetch(`${BASE_URL}/api/commandes`, {
-      method: "POST",
-      headers: { 
-        "Content-Type": "application/json",
-        "Accept": "application/json"
-      },
-      body: JSON.stringify(payload),
-    }).catch((err) => {
-      console.warn("Erreur BDD ignorée pour privilégier WhatsApp:", err)
+    cart.forEach((item) => {
+      const optionDetails = []
+      if (item.product.selectedSize) optionDetails.push(`Taille: ${item.product.selectedSize}`)
+      if (item.product.selectedColor) optionDetails.push(`Couleur: ${item.product.selectedColor}`)
+      const optionString = optionDetails.length > 0 ? ` [${optionDetails.join(", ")}]` : ""
+      
+      messageText += `- *${item.quantity}x* ${item.product.designation}${optionString} (${numberFormat(item.product.prix_vente * item.quantity)} FCFA)\n`
     })
-
-    // 4. NETTOYAGE DU PANIER LOCAL AVANT DE QUITTER
-    setCart([])
-    localStorage.removeItem(`cart_${tenant}`)
-    setIsCartOpen(false)
-    setNomClient("")
-    setPhoneClient("")
-    setAdresse("")
     
-    // 5. REDIRECTION SANS POPUP BLOQUÉ
-    // window.location.href contourne à 100% le bloqueur de popup car on ne crée pas de nouvelle fenêtre
-    window.location.href = urlWhatsApp
+    messageText += `\n💵 *TOTAL : ${numberFormat(montantTotal)} FCFA*`
 
-  } catch (err) {
-    console.error("Erreur lors du checkout:", err)
-    // En cas de gros bug, on force quand même la redirection WhatsApp pour ne pas perdre la vente !
-    window.location.href = urlWhatsApp
-  } finally {
-    setSubmitting(false)
+    const formattedWhatsapp = resolvedWhatsapp.replace(/\D/g, "")
+    const urlWhatsApp = `https://wa.me/${formattedWhatsapp}?text=${encodeURIComponent(messageText)}`
+
+    try {
+      // 3. On tente d'enregistrer en BDD chez Laravel en arrière-plan
+      await fetch(`${BASE_URL}/api/commandes`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        body: JSON.stringify(payload),
+      }).catch((err) => {
+        console.warn("Erreur BDD ignorée pour privilégier WhatsApp:", err)
+      })
+
+      // 4. NETTOYAGE DU PANIER LOCAL AVANT DE QUITTER
+      setCart([])
+      localStorage.removeItem(`cart_${tenant}`)
+      setIsCartOpen(false)
+      setNomClient("")
+      setPhoneClient("")
+      setAdresse("")
+      
+      // 5. REDIRECTION SANS POPUP BLOQUÉ
+      window.location.href = urlWhatsApp
+
+    } catch (err) {
+      console.error("Erreur lors du checkout:", err)
+      window.location.href = urlWhatsApp
+    } finally {
+      setSubmitting(false)
+    }
   }
-}
 
   return (
     <div className="min-h-screen bg-slate-50 pb-0 selection:bg-slate-200 antialiased font-sans relative">
@@ -469,7 +489,7 @@ export default function StorefrontPage({ params }) {
                 product={product} 
                 brandColor={brandColor} 
                 onAddToCart={addToCart} 
-                onOpenDetails={setSelectedProduct}
+                onOpenDetails={handleOpenProductDetails}
                 parseOption={parseOption}
               />
             ))}
@@ -550,7 +570,7 @@ function Header({ shopName, cartCount, brandColor, logo, onCartClick }) {
               src={getImageUrl(logo, BASE_URL)} 
               alt={safeShopName} 
               className="h-10 w-10 object-cover rounded-xl shadow-sm border border-slate-100"
-              onError={(e) => { (e.target).style.display = 'none'; }}
+              onError={(e) => { e.target.style.display = 'none'; }}
             />
           ) : (
             <div 
@@ -944,9 +964,9 @@ function CartDrawer({
                     <h5 className="text-sm font-bold text-slate-900">Information livraison</h5>
                     <p className="text-xs text-slate-500 mt-1 leading-relaxed">
                       {typeLivraison === 'gratuit' ? (
-                        <span className="text-emerald-600 font-semibold"><Sparkles /> Livraison est offerte par la boutique !</span>
+                        <span className="text-emerald-600 font-semibold"><Sparkles /> La livraison est offerte par la boutique !</span>
                       ) : (
-                        <span><Truck />Les frais de livraison dépendent de votre zone et seront convenus avec le vendeur lors de la validation.</span>
+                        <span><Truck /> Les frais de livraison dépendent de votre zone et seront convenus avec le vendeur lors de la validation.</span>
                       )}
                     </p>
                   </div>
@@ -1078,11 +1098,11 @@ function ProductDetailModal({ isOpen, product, brandColor, onClose, onAddToCart,
 
   const handleAddToCart = () => {
     if (hasSizes && !selectedSize) {
-      setErrorMsg("Veuillez sélectionner une taille / pointure.");
+      setErrorMsg("Veuillez sélectionner une taille / pointure.")
       return
     }
     if (hasColors && !selectedColor) {
-      setErrorMsg("Veuillez sélectionner une couleur.");
+      setErrorMsg("Veuillez sélectionner une couleur.")
       return
     }
 
@@ -1115,8 +1135,8 @@ function ProductDetailModal({ isOpen, product, brandColor, onClose, onAddToCart,
         </button>
 
         {/* Zone de gauche : Galerie Photo */}
-        <div className="w-full md:w-1/2 bg-slate-50 p-6 flex flex-col justify-between relative">
-          <div className="aspect-square w-full rounded-2xl overflow-hidden bg-white shadow-sm flex items-center justify-center">
+        <div className="w-full md:w-1/2 p-6 flex flex-col justify-between relative">
+          <div className="aspect-square w-full rounded-2xl overflow-hidden bg-white border border-slate-100 shadow-sm flex items-center justify-center">
             <img 
               src={images[activeImageIndex]} 
               alt={product.designation} 
@@ -1154,7 +1174,8 @@ function ProductDetailModal({ isOpen, product, brandColor, onClose, onAddToCart,
             </div>
 
             <div className="flex items-center gap-3">
-              <span className="text-2xl font-black text-slate-955">
+              {/* MODIFICATION : Prix du produit dans le modal rendu beaucoup plus grand et stylisé avec la couleur de la marque (brandColor) */}
+              <span className="text-3xl font-black" style={{ color: brandColor }}>
                 {numberFormat(product.prix_vente)} FCFA
               </span>
               

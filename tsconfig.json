@@ -34,7 +34,7 @@
     ".next/types/**/*.ts",
     "next-env.d.ts",
     "out/types/**/*.ts"
-, "src/app/page.jsx", "src/app/(storefront)/[tenant]/page.jsx", "src/app/(storefront)/[tenant]/page.jsx"  ],
+, "src/app/page.jsx", "src/app/(storefront)/[tenant]/page.jsx", "src/app/(storefront)/[tenant]/page.jsx", "src/app/(storefront)/[tenant]/layout.jsx"  ],
   "exclude": [
     "node_modules"
   ]
