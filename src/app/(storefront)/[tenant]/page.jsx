@@ -1387,7 +1387,7 @@ function ProductDetailModal({ isOpen, product, brandColor, onClose, onAddToCart,
                 className="w-full py-3 rounded-2xl font-bold text-xs uppercase tracking-wider hover:opacity-90 transition-all duration-150 active:scale-95 flex items-center justify-center gap-2"
               >
                 <ShoppingBag className="h-4 w-4" />
-                <span>Ajouter au panier DiayRek</span>
+                <span>Ajouter au panier</span>
               </button>
             </div>
           </div>
