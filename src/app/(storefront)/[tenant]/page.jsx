@@ -15,6 +15,8 @@ import {
   Truck,
   Layers,
   Palette,
+  Search,
+  X
 } from "lucide-react"
 
 // URL de votre serveur de production ou local
@@ -75,6 +77,9 @@ export default function StorefrontPage({ params }) {
   
   // Filtre actif: 'all' | 'instock' | 'promo'
   const [activeFilter, setActiveFilter] = useState('all')
+
+  // État de recherche textuelle
+  const [searchTerm, setSearchTerm] = useState("")
   
   // État du modal de détails produit
   const [selectedProduct, setSelectedProduct] = useState(null)
@@ -204,8 +209,8 @@ export default function StorefrontPage({ params }) {
       <div className="flex items-center justify-center min-h-screen bg-slate-50">
         <div className="relative flex h-16 w-16 items-center justify-center">
           {/* MODIFICATION : Animation de chargement beaucoup plus lumineuse et visible (Teal/Turquoise éclatant) */}
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-900 opacity-25"></span>
-          <div className="animate-spin rounded-full h-10 w-10 border-4 border-slate-950 border-t-transparent"></div>
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-500 opacity-25"></span>
+          <div className="animate-spin rounded-full h-10 w-10 border-4 border-teal-600 border-t-transparent"></div>
         </div>
       </div>
     )
@@ -312,19 +317,56 @@ export default function StorefrontPage({ params }) {
   const montantTotal = cart.reduce((total, item) => total + item.product.prix_vente * item.quantity, 0)
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0)
 
+  // Filtrage combiné : Catégories + Recherche textuelle
   const getFilteredProducts = () => {
-    switch (activeFilter) {
-      case "instock":
-        return resolvedProducts.filter((p) => p.quantite_stock > 0)
-      case "promo":
-        return resolvedProducts.filter((p) => p.quantite_stock > 0 && p.quantite_stock <= 5)
-      case "all":
-      default:
-        return resolvedProducts
+    let prods = resolvedProducts
+
+    // 1. Filtre capsule
+    if (activeFilter === "instock") {
+      prods = prods.filter((p) => p.quantite_stock > 0)
+    } else if (activeFilter === "promo") {
+      prods = prods.filter((p) => p.quantite_stock > 0 && p.quantite_stock <= 5)
     }
+
+    // 2. Filtre barre de recherche
+    if (searchTerm.trim() !== "") {
+      const query = searchTerm.toLowerCase()
+      prods = prods.filter((p) => 
+        p.designation.toLowerCase().includes(query) || 
+        (p.description && p.description.toLowerCase().includes(query))
+      )
+    }
+
+    return prods
   }
 
   const filteredProducts = getFilteredProducts()
+
+  // Commande directe par WhatsApp depuis le modal (Sans passer par le panier)
+  const handleDirectWhatsAppOrder = (product, selectedSize, selectedColor) => {
+    if (!resolvedWhatsapp) {
+      showToast("Numéro WhatsApp non configuré.")
+      return
+    }
+
+    let messageText = `*Intérêt d'achat direct sur ${resolvedShopName}*\n\n`
+    messageText += `👟 *Article :* ${product.designation}\n`
+    if (selectedSize) messageText += `📏 *Pointure/Taille :* ${selectedSize}\n`
+    if (selectedColor) messageText += `🎨 *Couleur :* ${selectedColor}\n`
+    messageText += `💵 *Prix :* ${numberFormat(product.prix_vente)} FCFA\n\n`
+    messageText += `Bonjour, je souhaite commander cet article en direct. Est-il disponible pour livraison ?`
+
+    const formattedWhatsapp = resolvedWhatsapp.replace(/\D/g, "")
+    const urlWhatsApp = `https://wa.me/${formattedWhatsapp}?text=${encodeURIComponent(messageText)}`
+    
+    // Log visite produit avant redirection
+    fetch(`${BASE_URL}/api/products/${product.id}/increment-view`, {
+      method: "POST",
+      keepalive: true,
+    }).catch(() => {})
+
+    window.location.href = urlWhatsApp
+  }
 
   const handleCheckout = async (e) => {
     e.preventDefault()
@@ -429,7 +471,7 @@ export default function StorefrontPage({ params }) {
         </div>
       )}
 
-      {/* NOVEAU : Bandeau d'annonce Livraison tout en haut */}
+      {/* Bandeau d'annonce Livraison tout en haut */}
       <div 
         style={{ backgroundColor: brandColor }}
         className="w-full text-white py-2 text-center text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm px-4"
@@ -455,12 +497,34 @@ export default function StorefrontPage({ params }) {
       <HeroCarousel 
         products={resolvedProducts.slice(0, 3)} 
         brandColor={brandColor} 
-        onBuyNow={addToCart}
+        onBuyNow={handleOpenProductDetails}
       />
 
       {/* Catalogue Zone */}
-      <main className="max-w-6xl mx-auto px-4 mt-12">
+      <main className="max-w-6xl mx-auto px-4 mt-8">
         
+        {/* NOUVEAU COMPOSANT : BARRE DE RECHERCHE ULTRA-PRATIQUE */}
+        <section className="mb-6 max-w-xl">
+          <div className="relative w-full">
+            <input 
+              type="text" 
+              placeholder="Rechercher une paire, une marque, un vêtement..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-12 pr-10 py-3.5 bg-white border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-350 text-slate-800 shadow-sm transition-all placeholder:text-slate-400"
+            />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+            {searchTerm && (
+              <button 
+                onClick={() => setSearchTerm("")}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        </section>
+
         {/* 3. COMPOSANT : FILTRES CAPSULES */}
         <CategoryFilters 
           activeFilter={activeFilter} 
@@ -479,7 +543,7 @@ export default function StorefrontPage({ params }) {
         {filteredProducts.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-3xl border border-slate-100 shadow-sm max-w-lg mx-auto">
             <span className="text-5xl mb-4 block">📦</span>
-            <p className="text-slate-500 font-semibold text-lg">Aucun article ne correspond à ce filtre.</p>
+            <p className="text-slate-500 font-semibold text-lg">Aucun article ne correspond à votre recherche.</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 md:gap-6">
@@ -524,6 +588,7 @@ export default function StorefrontPage({ params }) {
         brandColor={brandColor}
         onClose={() => setSelectedProduct(null)}
         onAddToCart={addToCart}
+        onDirectOrder={handleDirectWhatsAppOrder}
         typeLivraison={resolvedTypeLivraison}
       />
 
@@ -687,8 +752,8 @@ function HeroCarousel({ products, brandColor, onBuyNow }) {
 // ==========================================
 function CategoryFilters({ activeFilter, brandColor, onSelectFilter }) {
   return (
-    <section className="mb-10">
-      <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400 mb-4">Parcourir la collection</h3>
+    <section className="mb-8">
+      <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400 mb-3">Parcourir la collection</h3>
       <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-none snap-x">
         
         {/* All Products button */}
@@ -778,7 +843,7 @@ function ProductCard({ product, brandColor, onAddToCart, onOpenDetails, parseOpt
           </div>
         )}
 
-        {/* NOUVEAU : Petites pastilles d'options disponibles en bas de l'image */}
+        {/* Petites pastilles d'options disponibles en bas de l'image */}
         {!isOutOfStock && (hasSizes || hasColors) && (
           <div className="absolute bottom-2 left-2 flex gap-1 z-10">
             {hasSizes && (
@@ -806,8 +871,9 @@ function ProductCard({ product, brandColor, onAddToCart, onOpenDetails, parseOpt
           </p>
         </div>
 
-        <div className="mt-4 pt-3 border-t border-slate-50 flex items-center justify-between gap-2">
-          <div className="flex flex-col">
+        {/* RECO : Remplacement du bouton "+" par un bouton d'action "Voir" clair pour éliminer toute friction d'achat */}
+        <div className="mt-4 pt-3 border-t border-slate-50 flex flex-col gap-2">
+          <div className="flex justify-between items-baseline">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Prix</span>
             <span className="font-black text-slate-900 text-sm md:text-base whitespace-nowrap">
               {numberFormat(product.prix_vente)} F
@@ -817,15 +883,16 @@ function ProductCard({ product, brandColor, onAddToCart, onOpenDetails, parseOpt
           <button
             disabled={isOutOfStock}
             onClick={(e) => {
-              e.stopPropagation(); // Empêche d'ouvrir le modal de détails lors du clic sur le "+" d'achat rapide
-              onAddToCart(product);
+              e.stopPropagation()
+              onOpenDetails(product)
             }}
-            style={{ backgroundColor: isOutOfStock ? "#f1f5f9" : brandColor }}
-            className={`h-9 w-9 md:h-10 md:w-10 rounded-xl flex items-center justify-center text-white transition-all duration-150 active:scale-90 hover:opacity-95 ${
-              isOutOfStock ? "cursor-not-allowed !text-slate-400" : "shadow-sm"
-            }`}
+            style={{ 
+              backgroundColor: isOutOfStock ? "#f1f5f9" : brandColor,
+              color: isOutOfStock ? "#94a3b8" : "#ffffff"
+            }}
+            className="w-full py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all duration-150 active:scale-95 text-center flex items-center justify-center gap-1.5 shadow-sm hover:opacity-90 disabled:cursor-not-allowed"
           >
-            <Plus className="h-5 w-5" />
+            {isOutOfStock ? "Épuisé" : "Voir l'article"}
           </button>
         </div>
       </div>
@@ -863,11 +930,13 @@ function CartDrawer({
               {cart.reduce((sum, item) => sum + item.quantity, 0)} articles
             </span>
           </h3>
+
+          {/* AJOUT : Bouton Fermer Capsule ultra-visible */}
           <button 
             onClick={onClose} 
-            className="h-9 w-9 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-100 transition-colors"
+            className="px-4 py-2 rounded-full bg-red-50 border border-red-100 text-red-600 font-extrabold text-xs hover:bg-red-100 transition-colors flex items-center gap-1 shadow-sm"
           >
-            ✕
+            ✕ Fermer
           </button>
         </div>
 
@@ -964,9 +1033,9 @@ function CartDrawer({
                     <h5 className="text-sm font-bold text-slate-900">Information livraison</h5>
                     <p className="text-xs text-slate-500 mt-1 leading-relaxed">
                       {typeLivraison === 'gratuit' ? (
-                        <span className="text-emerald-600 font-semibold"><Sparkles /> La livraison est offerte par la boutique !</span>
+                        <span className="text-emerald-600 font-semibold"><Sparkles className="inline h-4 w-4 mr-1" /> La livraison est offerte par la boutique !</span>
                       ) : (
-                        <span><Truck /> Les frais de livraison dépendent de votre zone et seront convenus avec le vendeur lors de la validation.</span>
+                        <span><Truck className="inline h-4 w-4 mr-1" /> Les frais de livraison dépendent de votre zone et seront convenus avec le vendeur lors de la validation.</span>
                       )}
                     </p>
                   </div>
@@ -1055,7 +1124,7 @@ function CartDrawer({
 // ==========================================
 // --- COMPOSANT : MODAL DETAILS PRODUIT (AVEC ATTRIBUTS DÉCLINABLES)
 // ==========================================
-function ProductDetailModal({ isOpen, product, brandColor, onClose, onAddToCart, typeLivraison }) {
+function ProductDetailModal({ isOpen, product, brandColor, onClose, onAddToCart, onDirectOrder, typeLivraison }) {
   const [activeImageIndex, setActiveImageIndex] = useState(0)
   const [selectedColor, setSelectedColor] = useState("")
   const [selectedSize, setSelectedSize] = useState("")
@@ -1115,6 +1184,20 @@ function ProductDetailModal({ isOpen, product, brandColor, onClose, onAddToCart,
     onClose()
   }
 
+  const handleDirectWhatsAppClick = () => {
+    if (hasSizes && !selectedSize) {
+      setErrorMsg("Sélectionnez votre pointure d'abord.")
+      return
+    }
+    if (hasColors && !selectedColor) {
+      setErrorMsg("Sélectionnez la couleur d'abord.")
+      return
+    }
+
+    setErrorMsg("")
+    onDirectOrder(product, selectedSize, selectedColor)
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
       {/* Backdrop */}
@@ -1126,16 +1209,16 @@ function ProductDetailModal({ isOpen, product, brandColor, onClose, onAddToCart,
       {/* Corps du modal */}
       <div className="bg-white w-full max-w-3xl rounded-3xl overflow-hidden shadow-2xl relative z-10 flex flex-col md:flex-row max-h-[90vh] md:max-h-[80vh] transition-all duration-300">
         
-        {/* Bouton de fermeture mobile & desktop */}
+        {/* AJOUT : Bouton de fermeture Capsule ultra-visible en haut à droite */}
         <button 
           onClick={onClose}
-          className="absolute top-6 right-6 h-10 w-10 bg-slate-50 border border-slate-100 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+          className="absolute top-4 right-4 z-50 h-10 px-4 bg-slate-900 text-white font-extrabold text-xs rounded-full shadow-lg hover:bg-slate-800 transition active:scale-95 flex items-center gap-1.5 border border-white/20"
         >
-          ✕
+          ✕ Fermer
         </button>
 
         {/* Zone de gauche : Galerie Photo */}
-        <div className="w-full md:w-1/2 p-6 flex flex-col justify-between relative">
+        <div className="w-full md:w-1/2 p-6 flex flex-col justify-between relative bg-slate-50">
           <div className="aspect-square w-full rounded-2xl overflow-hidden bg-white border border-slate-100 shadow-sm flex items-center justify-center">
             <img 
               src={images[activeImageIndex]} 
@@ -1164,17 +1247,16 @@ function ProductDetailModal({ isOpen, product, brandColor, onClose, onAddToCart,
           )}
         </div>
 
-        {/* Zone de droite : Informations Produit */}
+        {/* Zone de droite : Informations/Variantes du Produit */}
         <div className="w-full md:w-1/2 p-6 md:p-8 flex flex-col justify-between overflow-y-auto">
           <div className="space-y-4">
             <div className="flex justify-between items-start gap-4">
-              <h3 className="text-2xl font-black text-slate-900 tracking-tight leading-tight">
+              <h3 className="text-2xl font-black text-slate-900 tracking-tight leading-tight pt-6 md:pt-0">
                 {product.designation}
               </h3>
             </div>
 
             <div className="flex items-center gap-3">
-              {/* MODIFICATION : Prix du produit dans le modal rendu beaucoup plus grand et stylisé avec la couleur de la marque (brandColor) */}
               <span className="text-3xl font-black" style={{ color: brandColor }}>
                 {numberFormat(product.prix_vente)} FCFA
               </span>
@@ -1200,7 +1282,7 @@ function ProductDetailModal({ isOpen, product, brandColor, onClose, onAddToCart,
               {hasSizes && (
                 <div className="space-y-1.5">
                   <span className="text-xs font-bold text-slate-700 block">
-                    Taille / Pointure : <span className="text-slate-400 font-normal">{selectedSize || "Sélectionner"}</span>
+                    Choisir votre pointure / taille : <span className="text-slate-400 font-normal">{selectedSize || "Sélectionner"}</span>
                   </span>
                   <div className="flex flex-wrap gap-2">
                     {availableSizes.map((size) => (
@@ -1214,7 +1296,7 @@ function ProductDetailModal({ isOpen, product, brandColor, onClose, onAddToCart,
                           borderColor: selectedSize === size ? brandColor : "",
                           backgroundColor: selectedSize === size ? `${brandColor}10` : ""
                         }}
-                        className={`px-3 py-1.5 text-xs font-bold rounded-xl border-2 transition-all active:scale-95 ${
+                        className={`px-3.5 py-2 text-xs font-bold rounded-xl border-2 transition-all active:scale-95 ${
                           selectedSize === size 
                             ? "text-slate-900 shadow-sm" 
                             : "border-slate-200 text-slate-600 hover:border-slate-350"
@@ -1259,7 +1341,7 @@ function ProductDetailModal({ isOpen, product, brandColor, onClose, onAddToCart,
               )}
             </div>
 
-            {/* NOUVEAU : Information de livraison affichée dans la fiche produit détaillée */}
+            {/* Information de livraison affichée dans la fiche produit détaillée */}
             <div className="bg-slate-50 border border-slate-100 p-3 rounded-xl flex items-center gap-2.5 text-xs text-slate-600 mt-2">
               <Truck className="h-4 w-4 text-slate-500 shrink-0" />
               <div>
@@ -1279,23 +1361,35 @@ function ProductDetailModal({ isOpen, product, brandColor, onClose, onAddToCart,
             )}
           </div>
 
-          <div className="pt-6 border-t border-slate-100 mt-6 space-y-4">
-            <div className="flex justify-between text-sm">
+          {/* AJOUT : Option d'achat direct "WhatsApp en 1 clic" pour booster les ventes de chaussures */}
+          <div className="pt-6 border-t border-slate-100 mt-6 space-y-3">
+            <div className="flex justify-between text-xs">
               <span className="font-semibold text-slate-400">Disponibilité :</span>
               <span className={`font-bold ${isOutOfStock ? "text-red-500" : "text-emerald-500"}`}>
                 {isOutOfStock ? "Épuisé" : `En stock (${product.quantite_stock} pièces)`}
               </span>
             </div>
 
-            <button
-              disabled={isOutOfStock}
-              onClick={handleAddToCart}
-              style={{ backgroundColor: isOutOfStock ? "#cbd5e1" : brandColor }}
-              className="w-full py-4 rounded-2xl text-white font-extrabold text-sm shadow-md hover:opacity-95 transition-all duration-150 active:scale-95 flex items-center justify-center gap-2"
-            >
-              <ShoppingBag className="h-4 w-4" />
-              <span>{isOutOfStock ? "Rupture de Stock" : "Ajouter au Panier"}</span>
-            </button>
+            <div className="flex flex-col gap-2">
+              <button
+                disabled={isOutOfStock}
+                onClick={handleDirectWhatsAppClick}
+                className="w-full py-3.5 rounded-2xl text-white font-extrabold text-sm shadow-md hover:bg-emerald-600 bg-emerald-500 transition-all duration-150 active:scale-95 flex items-center justify-center gap-2"
+              >
+                <MessageCircle className="h-5 w-5 fill-white/10" />
+                <span>Acheter direct sur WhatsApp 🟢</span>
+              </button>
+
+              <button
+                disabled={isOutOfStock}
+                onClick={handleAddToCart}
+                style={{ backgroundColor: isOutOfStock ? "#cbd5e1" : `${brandColor}20`, color: isOutOfStock ? "#ffffff" : brandColor }}
+                className="w-full py-3 rounded-2xl font-bold text-xs uppercase tracking-wider hover:opacity-90 transition-all duration-150 active:scale-95 flex items-center justify-center gap-2"
+              >
+                <ShoppingBag className="h-4 w-4" />
+                <span>Ajouter au panier DiayRek</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1360,7 +1454,7 @@ function Footer({ shopName, brandColor, logo, whatsapp }) {
             className="font-extrabold text-slate-300 hover:text-white transition flex items-center gap-1"
           >
             <span className="h-4 w-4 bg-teal-600 text-white rounded flex items-center justify-center font-black text-[9px]">Ej</span>
-            <span>Easy Jaay</span>
+            <span>DiayRek</span>
           </a>
         </p>
       </div>

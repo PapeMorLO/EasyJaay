@@ -380,7 +380,7 @@ export default function LandingPage() {
                     className="p-5 bg-white border border-slate-200 rounded-2xl hover:border-teal-500 hover:bg-teal-50/20 transition flex flex-col items-center gap-3 text-center group"
                   >
                     <Eye className="h-6 w-6 text-teal-600" />
-                    <span className="font-extrabold text-sm text-slate-800">Voir mon site E-commerce</span>
+                    <span className="font-extrabold text-sm text-slate-800">Voir ma boutique</span>
                     <span className="text-xs text-slate-400 font-mono">https://easyjaay.baobapp.tech/{slug}</span>
                   </a>
 
@@ -390,7 +390,7 @@ export default function LandingPage() {
                     className="p-5 bg-white border border-slate-200 rounded-2xl hover:border-teal-500 hover:bg-teal-50/20 transition flex flex-col items-center gap-3 text-center group"
                   >
                     <Settings className="h-6 w-6 text-teal-600" />
-                    <span className="font-extrabold text-sm text-slate-800">Consulter ma page adminstration : </span>
+                    <span className="font-extrabold text-sm text-slate-800">Gérer mes produits : </span>
                     <span className="text-xs text-slate-400 font-mono">https://easyjaayback.baobapp.tech/admin/login</span>
                   </a>
                 </div>
