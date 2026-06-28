@@ -1,13 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { 
   Rocket, 
   Sparkles, 
-
   ArrowRight, 
   Palette, 
- 
   TrendingUp, 
   Store,
   ShieldCheck,
@@ -15,39 +13,39 @@ import {
   TriangleAlert, 
   Loader2,
   Settings,
-  Eye
+  Eye,
+  LogIn
 } from "lucide-react"
 
-import Image from 'next/image';
-import logo from '@/public/icon.png';
+interface SuccessData {
+  shopUrl: string;
+  adminUrl: string;
+}
 
-// URL de ton Laragon locale
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
+// URL de votre serveur Laragon locale ou de production
+const BASE_URL: string = "https://easyjaayback.baobapp.tech";
 
 export default function LandingPage() {
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [raisonSociale, setRaisonSociale] = useState("")
-  const [slug, setSlug] = useState("")
-  const [contactCall, setContactCall] = useState("")
-  const [contactWhatsapp, setContactWhatsapp] = useState("")
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false)
+  const [raisonSociale, setRaisonSociale] = useState<string>("")
+  const [slug, setSlug] = useState<string>("")
+  const [contactCall, setContactCall] = useState<string>("")
+  const [contactWhatsapp, setContactWhatsapp] = useState<string>("")
   
   // Paramètres administrateur pour la connexion Filament
-  const [adminName, setAdminName] = useState("")
-  const [adminEmail, setAdminEmail] = useState("")
-  const [adminPassword, setAdminPassword] = useState("")
+  const [adminName, setAdminName] = useState<string>("")
+  const [adminEmail, setAdminEmail] = useState<string>("")
+  const [adminPassword, setAdminPassword] = useState<string>("")
   
-  // États d'envoi et de succès
-  const [submitting, setSubmitting] = useState(false)
-  const [successData, setSuccessData] = useState<{
-    shopUrl: string
-    adminUrl: string
-  } | null>(null)
+  // États d'envoi, d'erreur et de succès
+  const [submitting, setSubmitting] = useState<boolean>(false)
+  const [successData, setSuccessData] = useState<SuccessData | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  const handleRaisonSocialeChange = (value: string) => {
+  const handleRaisonSocialeChange = (value: string): void => {
     setRaisonSociale(value)
     // Convertit "Sokhna Cosmétiques" en "sokhna-cosmetiques"
-    const generatedSlug = value
+    const generatedSlug: string = value
       .toLowerCase()
       .trim()
       .normalize("NFD")
@@ -58,7 +56,7 @@ export default function LandingPage() {
     setSlug(generatedSlug)
   }
 
-  const handleOnboardingSubmit = async (e: React.FormEvent) => {
+  const handleOnboardingSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault()
     setSubmitting(true)
     setErrorMessage(null)
@@ -66,11 +64,11 @@ export default function LandingPage() {
     const payload = {
       raison_sociale: raisonSociale,
       slug: slug,
-      phone: contactCall,
+      contact_call: contactCall,
       contact_whatsapp: contactWhatsapp,
-      name: adminName,
-      email: adminEmail,
-      password: adminPassword
+      admin_name: adminName,
+      admin_email: adminEmail,
+      admin_password: adminPassword
     }
 
     try {
@@ -89,7 +87,7 @@ export default function LandingPage() {
         throw new Error(data.message || "Erreur lors de la création de la boutique.")
       }
 
-      // Succès : Enregistrement des liens d'accès dynamiques
+      // Succès : Enregistrement des liens d'accès dynamiques typés
       setSuccessData({
         shopUrl: `/${slug}`,
         adminUrl: `${BASE_URL}/admin/login`
@@ -116,39 +114,58 @@ export default function LandingPage() {
       <nav className="border-b border-slate-100 bg-white/80 backdrop-blur-md sticky top-0 z-40 px-6 py-4">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-2.5">
-            <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-teal-600 text-white font-black text-xl shadow-md shadow-teal-100">
-                <Image src="/images/icon.png" width={80} height={50}   alt="Logo de mon entreprise" priority />
+            <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-teal-600 text-white font-black text-xl shadow-md shadow-teal-100 overflow-hidden">
+              <Store className="h-5 w-5" />
             </div>
             <span className="font-extrabold text-xl tracking-tight text-slate-950">
-            
+              DiayRek
             </span>
           </div>
 
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="px-5 py-2.5 rounded-xl font-extrabold text-sm text-white bg-slate-950 hover:bg-slate-900 transition active:scale-95 shadow-sm"
-          >
-            Lancer ma boutique
-          </button>
+          <div className="flex items-center gap-3">
+            <a 
+              href={`${BASE_URL}/admin/login`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-4 py-2.5 rounded-xl font-bold text-xs md:text-sm text-slate-700 bg-slate-100 hover:bg-slate-200 transition active:scale-95 flex items-center gap-1.5 shadow-sm border border-slate-200"
+            >
+              <LogIn className="h-4 w-4" />
+              <span className="hidden sm:inline">Se connecter à ma Boutique</span>
+              <span className="sm:hidden">Connexion</span>
+            </a>
+
+            <button 
+              onClick={() => setIsModalOpen(true)}
+              className="px-4 py-2.5 rounded-xl font-extrabold text-xs md:text-sm text-white bg-teal-600 hover:bg-teal-700 transition active:scale-95 shadow-sm"
+            >
+              Lancer ma boutique
+            </button>
+          </div>
         </div>
       </nav>
 
-      {/* Hero Section */}
+      {}
       <header className="relative py-24 md:py-32 px-6 overflow-hidden">
         <div className="absolute inset-0 -z-10 bg-radial-at-t from-teal-50 via-slate-50 to-slate-50" />
         <div className="max-w-5xl mx-auto text-center space-y-8">
           <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-teal-50 border border-teal-100 text-teal-700 font-extrabold text-xs uppercase tracking-wider animate-pulse">
             <Sparkles className="h-3.5 w-3.5" />
-             E-commerce locale
+             E-commerce local & instantané
           </span>
-        
           
-          <h1 className="text-4xl md:text-6xl font-black text-slate-950 tracking-tight leading-tight max-w-4xl mx-auto">
-            Vendez en ligne. <br />
-            Gérez le reste par <span className="text-teal-600">WhatsApp</span>
-          </h1>
+          <div className="space-y-4 max-w-3xl mx-auto">
+            <h1 className="text-3xl md:text-3xl font-black text-slate-950 tracking-tight leading-tight">
+              <span className="text-teal-600">Ma Boutique</span>,votre site à partager
+            </h1>
+            <h1 className="text-3xl md:text-3xl font-black text-slate-950 tracking-tight leading-tight">
+              <span className="text-teal-600">Ma Vitrine</span>,vos produits sur les réseaux
+            </h1>
+            <h1 className="text-3xl md:text-3xl font-black text-slate-950 tracking-tight leading-tight">
+              <span className="text-teal-600">Ma Caisse</span>,vos commandes sur WhatsApp
+            </h1>
+          </div>
 
-          <p className="text-lg md:text-xl text-slate-500 max-w-2xl mx-auto font-medium leading-relaxed">
+          <p className="text-lg md:text-xl text-slate-500 max-w-2xl mx-auto font-medium leading-relaxed pt-2">
             Créez votre boutique en ligne personnalisée en 30 secondes. Publiez vos produits, gérez vos stocks et recevez vos commandes directement sur votre téléphone.
           </p>
 
@@ -170,7 +187,6 @@ export default function LandingPage() {
         </div>
       </header>
 
-      {/* Features Grid */}
       {}
       <section id="features" className="max-w-6xl mx-auto px-6 py-20 border-t border-slate-100">
         <div className="text-center space-y-3 mb-16">
@@ -185,7 +201,7 @@ export default function LandingPage() {
             </div>
             <h3 className="text-xl font-bold text-slate-900">100% Mobile & WhatsApp</h3>
             <p className="text-slate-500 text-sm leading-relaxed">
-              Vos clients commandent d'un simple clic sur leur mobile. Le récapitulatif complet de la commande arrive pré-rempli dans votre boîte WhatsApp.
+              Vos clients commandent d&apos;un simple clic sur leur mobile. Le récapitulatif complet de la commande arrive pré-rempli dans votre boîte WhatsApp.
             </p>
           </div>
 
@@ -195,7 +211,7 @@ export default function LandingPage() {
             </div>
             <h3 className="text-xl font-bold text-slate-900">Thème Personnalisable</h3>
             <p className="text-slate-500 text-sm leading-relaxed">
-              Gérez votre marque avec soin. Changez la couleur de votre site, votre logo et vos bannières directement depuis votre espace d'administration.
+              Gérez votre marque avec soin. Changez la couleur de votre site, votre logo et vos bannières directement depuis votre espace d&apos;administration.
             </p>
           </div>
 
@@ -211,11 +227,10 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Onboarding Modal */}
       {}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-xl rounded-3xl shadow-2xl p-8 overflow-y-auto max-h-[90vh] relative space-y-6 animate-fade-in">
+          <div className="bg-white w-full max-w-xl rounded-3xl shadow-2xl p-8 overflow-y-auto max-h-[90vh] relative space-y-6">
             
             <button 
               onClick={() => {
@@ -240,7 +255,7 @@ export default function LandingPage() {
 
                 {errorMessage && (
                   <div className="p-4 bg-red-50 border border-red-100 rounded-2xl text-red-700 text-sm font-semibold">
-                    <TriangleAlert /> {errorMessage}
+                    <TriangleAlert className="inline h-4 w-4 mr-1.5" /> {errorMessage}
                   </div>
                 )}
 
@@ -277,7 +292,7 @@ export default function LandingPage() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-700">Téléphone appel</label>
+                      <label className="text-xs font-bold text-slate-700">Téléphone d&apos;appel</label>
                       <input 
                         type="tel"
                         placeholder="Ex: 77 123 45 67"
@@ -305,7 +320,7 @@ export default function LandingPage() {
                   <h4 className="text-xs font-black uppercase text-slate-400 tracking-wider">Création du compte administrateur</h4>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-700">Nom complet de l'admin</label>
+                    <label className="text-xs font-bold text-slate-700">Nom complet de l&apos;admin</label>
                     <input 
                       type="text"
                       placeholder="Ex: Sokhna Diop"
@@ -359,7 +374,7 @@ export default function LandingPage() {
                 </button>
               </form>
             ) : (
-              <div className="text-center py-6 space-y-6 animate-fade-in">
+              <div className="text-center py-6 space-y-6">
                 <div className="h-16 w-16 bg-emerald-50 text-emerald-600 rounded-3xl mx-auto flex items-center justify-center">
                   <ShieldCheck className="h-8 w-8" />
                 </div>
@@ -377,6 +392,7 @@ export default function LandingPage() {
                   <a 
                     href={successData.shopUrl}
                     target="_blank"
+                    rel="noopener noreferrer"
                     className="p-5 bg-white border border-slate-200 rounded-2xl hover:border-teal-500 hover:bg-teal-50/20 transition flex flex-col items-center gap-3 text-center group"
                   >
                     <Eye className="h-6 w-6 text-teal-600" />
@@ -387,10 +403,11 @@ export default function LandingPage() {
                   <a 
                     href={successData.adminUrl}
                     target="_blank"
+                    rel="noopener noreferrer"
                     className="p-5 bg-white border border-slate-200 rounded-2xl hover:border-teal-500 hover:bg-teal-50/20 transition flex flex-col items-center gap-3 text-center group"
                   >
                     <Settings className="h-6 w-6 text-teal-600" />
-                    <span className="font-extrabold text-sm text-slate-800">Gérer mes produits : </span>
+                    <span className="font-extrabold text-sm text-slate-800">Gérer mes produits</span>
                     <span className="text-xs text-slate-400 font-mono">https://easyjaayback.baobapp.tech/admin/login</span>
                   </a>
                 </div>
