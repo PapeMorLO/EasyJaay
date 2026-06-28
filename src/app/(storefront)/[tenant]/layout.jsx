@@ -55,7 +55,7 @@ export async function generateMetadata({ params }) {
 
     // 4. Envoi des métadonnées Open Graph lues par les réseaux sociaux
     return {
-      title: `${shopName} | EasyJaay`,
+      title: `${shopName} | DiayRek`,
       description: `Découvrez notre catalogue sur EasyJaay. Commandez directement vos articles sur WhatsApp !`,
       openGraph: {
         title: shopName,

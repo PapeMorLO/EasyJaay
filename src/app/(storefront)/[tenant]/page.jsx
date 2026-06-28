@@ -73,6 +73,7 @@ export default function StorefrontPage({ params }) {
   const [shop, setShop] = useState(null)
   const [loading, setLoading] = useState(true)
   const [cart, setCart] = useState([])
+  const [cartLoaded, setCartLoaded] = useState(false) // Verrou pour éviter d'écraser le localStorage
   const [isCartOpen, setIsCartOpen] = useState(false)
   
   // Filtre actif: 'all' | 'instock' | 'promo'
@@ -108,6 +109,22 @@ export default function StorefrontPage({ params }) {
     }
   }, [params])
 
+  // 1. Étape de chargement initiale du panier (Une seule fois au montage de la boutique)
+  useEffect(() => {
+    if (tenant) {
+      const savedCart = localStorage.getItem(`cart_${tenant}`)
+      if (savedCart) {
+        try {
+          setCart(JSON.parse(savedCart))
+        } catch (e) {
+          console.error("Erreur lors de la lecture du panier local :", e)
+        }
+      }
+      setCartLoaded(true) // Le panier est maintenant chargé avec succès, le verrou est ouvert
+    }
+  }, [tenant])
+
+  // 2. Étape de chargement des données de la boutique (API)
   useEffect(() => {
     async function fetchShop() {
       try {
@@ -135,7 +152,7 @@ export default function StorefrontPage({ params }) {
           normalizedShop = {
             raison_sociale: data.data.raison_sociale || data.data.nom || "Ma Boutique",
             couleur_theme: data.data.couleur_theme || data.data.theme || "#10b981",
-            contact_whatsapp: data.data.contact_whatsapp || data.data.whatsapp || "",
+            contact_whatsapp: data.contact_whatsapp || data.whatsapp || "",
             logo: data.data.logo || data.logo || null,
             type_livraison: data.data.type_livraison || "selon_zone",
             produits: data.data.produits || data.data.products || []
@@ -164,12 +181,6 @@ export default function StorefrontPage({ params }) {
             .catch((err) => console.warn("Erreur d'enregistrement de la visite boutique :", err))
         }
 
-        // Récupération du panier local
-        const savedCart = localStorage.getItem(`cart_${tenant}`)
-        if (savedCart) {
-          setCart(JSON.parse(savedCart))
-        }
-
       } catch (error) {
         console.error("Next.js Fetch Error:", error)
       } finally {
@@ -182,11 +193,12 @@ export default function StorefrontPage({ params }) {
     }
   }, [tenant])
 
+  // 3. Étape de sauvegarde automatique (Uniquement après confirmation du chargement)
   useEffect(() => {
-    if (tenant && shop) {
+    if (tenant && shop && cartLoaded) {
       localStorage.setItem(`cart_${tenant}`, JSON.stringify(cart))
     }
-  }, [cart, tenant, shop])
+  }, [cart, tenant, shop, cartLoaded])
 
   const showToast = (message) => {
     setToastMessage(message)
@@ -590,6 +602,7 @@ export default function StorefrontPage({ params }) {
         onAddToCart={addToCart}
         onDirectOrder={handleDirectWhatsAppOrder}
         typeLivraison={resolvedTypeLivraison}
+        cartCount={cartCount}
       />
 
       {/* 7. COMPOSANT : FOOTER */}
@@ -685,7 +698,7 @@ function HeroCarousel({ products, brandColor, onBuyNow }) {
 
   return (
     <section className="px-4 mt-6 max-w-6xl mx-auto">
-      <div className="relative h-[320px] md:h-[400px] w-full rounded-3xl overflow-hidden bg-slate-955 text-white shadow-xl shadow-slate-100">
+      <div className="relative h-[320px] md:h-[400px] w-full rounded-3xl overflow-hidden bg-slate-900 text-white shadow-xl shadow-slate-100">
         
         {/* Background Overlay */}
         <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/45 to-transparent z-10" />
@@ -924,8 +937,9 @@ function CartDrawer({
         
         {/* Header */}
         <div className="flex justify-between items-center border-b border-slate-100 pb-4">
-          <h3 className="text-xl font-extrabold text-slate-955 flex items-center gap-2">
-            <ShoppingBag className="h-5 w-5 text-slate-900" /> Votre Panier 
+          {/* MODIFICATION : Correction de la lisibilité du titre "Votre Panier" par l'utilisation de text-slate-950 haut-contraste */}
+          <h3 className="text-xl font-extrabold text-slate-950 flex items-center gap-2">
+            <ShoppingBag className="h-5 w-5 text-slate-950" /> Votre Panier 
             <span className="text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-700">
               {cart.reduce((sum, item) => sum + item.quantity, 0)} articles
             </span>
@@ -988,20 +1002,22 @@ function CartDrawer({
 
                         <p className="text-xs font-semibold text-slate-400">{numberFormat(item.product.prix_vente)} FCFA</p>
                         
-                        {/* Quantity Controls */}
-                        <div className="flex items-center gap-2.5 pt-1.5">
+                        {/* MODIFICATION : Agrandissement et mise en valeur des contrôleurs de quantité pour l'accessibilité sur mobile */}
+                        <div className="flex items-center gap-3 pt-2">
                           <button 
                             onClick={() => onUpdateQuantity(item.product.id, item.product.selectedSize || "", item.product.selectedColor || "", -1)}
-                            className="h-6 w-6 rounded bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs flex items-center justify-center transition"
+                            className="h-8 w-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-900 font-extrabold text-sm flex items-center justify-center transition border border-slate-200 shadow-sm active:scale-90"
+                            title="Diminuer"
                           >
-                            <Minus className="h-3 w-3" />
+                            <Minus className="h-4 w-4" />
                           </button>
-                          <span className="text-xs font-extrabold w-6 text-center">{item.quantity}</span>
+                          <span className="text-base font-black w-8 text-center text-slate-950">{item.quantity}</span>
                           <button 
                             onClick={() => onUpdateQuantity(item.product.id, item.product.selectedSize || "", item.product.selectedColor || "", 1)}
-                            className="h-6 w-6 rounded bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs flex items-center justify-center transition"
+                            className="h-8 w-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-900 font-extrabold text-sm flex items-center justify-center transition border border-slate-200 shadow-sm active:scale-90"
+                            title="Augmenter"
                           >
-                            <Plus className="h-3 w-3" />
+                            <Plus className="h-4 w-4" />
                           </button>
                         </div>
                       </div>
@@ -1124,7 +1140,7 @@ function CartDrawer({
 // ==========================================
 // --- COMPOSANT : MODAL DETAILS PRODUIT (AVEC ATTRIBUTS DÉCLINABLES)
 // ==========================================
-function ProductDetailModal({ isOpen, product, brandColor, onClose, onAddToCart, onDirectOrder, typeLivraison }) {
+function ProductDetailModal({ isOpen, product, brandColor, onClose, onAddToCart, onDirectOrder, typeLivraison, cartCount }) {
   const [activeImageIndex, setActiveImageIndex] = useState(0)
   const [selectedColor, setSelectedColor] = useState("")
   const [selectedSize, setSelectedSize] = useState("")
@@ -1197,6 +1213,8 @@ function ProductDetailModal({ isOpen, product, brandColor, onClose, onAddToCart,
     setErrorMsg("")
     onDirectOrder(product, selectedSize, selectedColor)
   }
+
+  const safeCartCount = Number(cartCount) || 0
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
@@ -1370,24 +1388,40 @@ function ProductDetailModal({ isOpen, product, brandColor, onClose, onAddToCart,
               </span>
             </div>
 
+            {safeCartCount > 0 && (
+              <div className="p-3 bg-amber-50 text-amber-800 text-[11px] font-semibold rounded-2xl border border-amber-100/60 leading-normal flex flex-col gap-1 shadow-sm animate-fade-in">
+                <span>💡 <strong>Conseil :</strong> Vous avez déjà {safeCartCount} article(s) dans votre panier.</span>
+                <span className="text-slate-600 font-normal">Ajoutez ce produit au panier ci-dessous pour grouper votre envoi et ne payer qu&apos;une seule livraison !</span>
+              </div>
+            )}
+
             <div className="flex flex-col gap-2">
-              <button
-                disabled={isOutOfStock}
-                onClick={handleDirectWhatsAppClick}
-                className="w-full py-3.5 rounded-2xl text-white font-extrabold text-sm shadow-md hover:bg-emerald-600 bg-emerald-500 transition-all duration-150 active:scale-95 flex items-center justify-center gap-2"
-              >
-                <MessageCircle className="h-5 w-5 fill-white/10" />
-                <span>Acheter direct sur WhatsApp 🟢</span>
-              </button>
+              {safeCartCount === 0 && (
+                <button
+                  disabled={isOutOfStock}
+                  onClick={handleDirectWhatsAppClick}
+                  className="w-full py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-sm shadow-md transition-all duration-150 active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <MessageCircle className="h-5 w-5 fill-white/10" />
+                  <span>Acheter direct sur WhatsApp 🟢</span>
+                </button>
+              )}
 
               <button
                 disabled={isOutOfStock}
                 onClick={handleAddToCart}
-                style={{ backgroundColor: isOutOfStock ? "#cbd5e1" : `${brandColor}20`, color: isOutOfStock ? "#ffffff" : brandColor }}
-                className="w-full py-3 rounded-2xl font-bold text-xs uppercase tracking-wider hover:opacity-90 transition-all duration-150 active:scale-95 flex items-center justify-center gap-2"
+                style={{ 
+                  backgroundColor: isOutOfStock 
+                    ? "#cbd5e1" 
+                    : brandColor, 
+                  color: isOutOfStock 
+                    ? "#ffffff" 
+                    : "#ffffff"
+                }}
+                className="w-full py-3.5 rounded-2xl font-extrabold text-xs uppercase tracking-wider hover:opacity-90 transition-all duration-150 active:scale-95 flex items-center justify-center gap-2 shadow-sm"
               >
                 <ShoppingBag className="h-4 w-4" />
-                <span>Ajouter au panier</span>
+                <span>{safeCartCount > 0 ? "Ajouter au panier avec les autres" : "Ajouter au panier DiayRek"}</span>
               </button>
             </div>
           </div>
