@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { 
   Rocket, 
   Sparkles, 
@@ -27,15 +27,18 @@ const BASE_URL: string = "https://easyjaayback.baobapp.tech";
 
 export default function LandingPage() {
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false)
+  
+  // États du formulaire alignés sur la validation Laravel
   const [raisonSociale, setRaisonSociale] = useState<string>("")
-  const [slug, setSlug] = useState<string>("")
-  const [contactCall, setContactCall] = useState<string>("")
+  const [slug, setSlug] = useState<string>("") // Utilisé pour l'aperçu visuel frontend
+  const [phone, setPhone] = useState<string>("")
   const [contactWhatsapp, setContactWhatsapp] = useState<string>("")
   
-  // Paramètres administrateur pour la connexion Filament
-  const [adminName, setAdminName] = useState<string>("")
-  const [adminEmail, setAdminEmail] = useState<string>("")
-  const [adminPassword, setAdminPassword] = useState<string>("")
+  // Administrateur (User)
+  const [prenom, setPrenom] = useState<string>("")
+  const [name, setName] = useState<string>("")
+  const [email, setEmail] = useState<string>("")
+  const [password, setPassword] = useState<string>("")
   
   // États d'envoi, d'erreur et de succès
   const [submitting, setSubmitting] = useState<boolean>(false)
@@ -61,14 +64,15 @@ export default function LandingPage() {
     setSubmitting(true)
     setErrorMessage(null)
 
+    // PAYLOAD PARFAITEMENT ALIGNÉ SUR LE VALIDATEUR LARAVEL
     const payload = {
       raison_sociale: raisonSociale,
-      slug: slug,
-      contact_call: contactCall,
-      contact_whatsapp: contactWhatsapp,
-      admin_name: adminName,
-      admin_email: adminEmail,
-      admin_password: adminPassword
+      prenom: prenom,
+      name: name,
+      email: email,
+      phone: phone,
+      password: password,
+      contact_whatsapp: contactWhatsapp
     }
 
     try {
@@ -84,17 +88,30 @@ export default function LandingPage() {
       const data = await res.json()
 
       if (!res.ok) {
+        // Extraction des erreurs de validation détaillées de Laravel
+        if (data.errors) {
+          const detailMessages = Object.entries(data.errors)
+            .map(([field, messages]) => {
+              const msgString = Array.isArray(messages) ? messages.join(", ") : String(messages);
+              return `❌ Champ "${field}" : ${msgString}`;
+            })
+            .join("\n");
+          throw new Error(detailMessages);
+        }
         throw new Error(data.message || "Erreur lors de la création de la boutique.")
       }
 
-      // Succès : Enregistrement des liens d'accès dynamiques typés
+      // Utilisation des données dynamiques renvoyées par votre contrôleur Laravel
+      const finalSlug = data.data?.shop_slug || slug;
+      const finalRedirectUrl = data.redirect_url || `${BASE_URL}/admin/login`;
+
       setSuccessData({
-        shopUrl: `/${slug}`,
-        adminUrl: `${BASE_URL}/admin/login`
+        shopUrl: `/${finalSlug}`,
+        adminUrl: finalRedirectUrl
       })
 
     } catch (err: any) {
-      console.error(err)
+      console.error("Onboarding Error:", err)
       setErrorMessage(err.message || "Une erreur technique s'est produite.")
     } finally {
       setSubmitting(false)
@@ -130,8 +147,7 @@ export default function LandingPage() {
               className="px-4 py-2.5 rounded-xl font-bold text-xs md:text-sm text-slate-700 bg-slate-100 hover:bg-slate-200 transition active:scale-95 flex items-center gap-1.5 shadow-sm border border-slate-200"
             >
               <LogIn className="h-4 w-4" />
-              <span className="hidden sm:inline">Se connecter à ma Boutique</span>
-              <span className="sm:hidden">Connexion</span>
+              <span className="hidden sm:inline">Se connecter</span>
             </a>
 
             <button 
@@ -144,7 +160,7 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {}
+      {/* Hero Section */}
       <header className="relative py-24 md:py-32 px-6 overflow-hidden">
         <div className="absolute inset-0 -z-10 bg-radial-at-t from-teal-50 via-slate-50 to-slate-50" />
         <div className="max-w-5xl mx-auto text-center space-y-8">
@@ -154,14 +170,14 @@ export default function LandingPage() {
           </span>
           
           <div className="space-y-4 max-w-3xl mx-auto">
-            <h1 className="text-3xl md:text-3xl font-black text-slate-950 tracking-tight leading-tight">
-              <span className="text-teal-600">Ma Boutique</span>,votre site à partager
+            <h1 className="text-3xl md:text-3xl font-black text-slate-955 tracking-tight leading-tight">
+              <span className="text-teal-600">Ma Boutique</span> — votre site à partager
             </h1>
-            <h1 className="text-3xl md:text-3xl font-black text-slate-950 tracking-tight leading-tight">
-              <span className="text-teal-600">Ma Vitrine</span>,vos produits sur les réseaux
+            <h1 className="text-3xl md:text-3xl font-black text-slate-955 tracking-tight leading-tight">
+              <span className="text-teal-600">Ma Vitrine</span> — vos produits sur les réseaux
             </h1>
-            <h1 className="text-3xl md:text-3xl font-black text-slate-950 tracking-tight leading-tight">
-              <span className="text-teal-600">Ma Caisse</span>,vos commandes sur WhatsApp
+            <h1 className="text-3xl md:text-3xl font-black text-slate-955 tracking-tight leading-tight">
+              <span className="text-teal-600">Ma Caisse</span> — vos commandes sur WhatsApp
             </h1>
           </div>
 
@@ -187,7 +203,7 @@ export default function LandingPage() {
         </div>
       </header>
 
-      {}
+      {/* Features Grid */}
       <section id="features" className="max-w-6xl mx-auto px-6 py-20 border-t border-slate-100">
         <div className="text-center space-y-3 mb-16">
           <h2 className="text-3xl font-black text-slate-950 tracking-tight">Pourquoi nous faire confiance ?</h2>
@@ -211,7 +227,7 @@ export default function LandingPage() {
             </div>
             <h3 className="text-xl font-bold text-slate-900">Thème Personnalisable</h3>
             <p className="text-slate-500 text-sm leading-relaxed">
-              Gérez votre marque avec soin. Changez la couleur de votre site, votre logo et vos bannières directement depuis votre espace d&apos;administration.
+              Gérer votre marque avec soin. Changez la couleur de votre site, votre logo et vos bannières directement depuis votre espace d&apos;administration.
             </p>
           </div>
 
@@ -227,7 +243,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {}
+      {/* Onboarding Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-xl rounded-3xl shadow-2xl p-8 overflow-y-auto max-h-[90vh] relative space-y-6">
@@ -246,7 +262,7 @@ export default function LandingPage() {
             {!successData ? (
               <form onSubmit={handleOnboardingSubmit} className="space-y-6">
                 <div className="space-y-2">
-                  <h3 className="text-2xl font-black text-slate-950 flex items-center gap-2">
+                  <h3 className="text-2xl font-black text-slate-955 flex items-center gap-2">
                     <Store className="h-6 w-6 text-teal-600" />
                     Créer ma boutique
                   </h3>
@@ -254,8 +270,12 @@ export default function LandingPage() {
                 </div>
 
                 {errorMessage && (
-                  <div className="p-4 bg-red-50 border border-red-100 rounded-2xl text-red-700 text-sm font-semibold">
-                    <TriangleAlert className="inline h-4 w-4 mr-1.5" /> {errorMessage}
+                  <div className="p-4 bg-red-50 border border-red-150 rounded-2xl text-red-700 text-xs font-semibold whitespace-pre-line leading-relaxed shadow-sm">
+                    <div className="font-extrabold flex items-center gap-1.5 text-sm mb-1 text-red-800">
+                      <TriangleAlert className="h-4.5 w-4.5 text-red-650 shrink-0" />
+                      Erreur de validation :
+                    </div>
+                    {errorMessage}
                   </div>
                 )}
 
@@ -275,7 +295,7 @@ export default function LandingPage() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-700">Adresse URL de la boutique (Générée automatiquement)</label>
+                    <label className="text-xs font-bold text-slate-700">Adresse URL de la boutique (Aperçu)</label>
                     <div className="flex rounded-2xl overflow-hidden border border-slate-200">
                       <span className="bg-slate-100 text-slate-500 px-4 py-3 text-xs md:text-sm font-mono flex items-center">
                         easyjaay.com/
@@ -285,7 +305,7 @@ export default function LandingPage() {
                         required
                         readOnly
                         value={slug}
-                        className="w-full px-4 py-3 bg-slate-50 font-mono text-sm text-teal-700 font-bold focus:outline-none"
+                        className="w-full px-4 py-3 bg-slate-100 font-mono text-sm text-teal-700 font-bold focus:outline-none cursor-not-allowed"
                       />
                     </div>
                   </div>
@@ -295,10 +315,10 @@ export default function LandingPage() {
                       <label className="text-xs font-bold text-slate-700">Téléphone d&apos;appel</label>
                       <input 
                         type="tel"
-                        placeholder="Ex: 77 123 45 67"
+                        placeholder="Ex: 771234567"
                         required
-                        value={contactCall}
-                        onChange={(e) => setContactCall(e.target.value)}
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
                         className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white transition"
                       />
                     </div>
@@ -319,39 +339,52 @@ export default function LandingPage() {
                 <div className="space-y-4 border-t border-slate-100 pt-6">
                   <h4 className="text-xs font-black uppercase text-slate-400 tracking-wider">Création du compte administrateur</h4>
 
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-700">Nom complet de l&apos;admin</label>
-                    <input 
-                      type="text"
-                      placeholder="Ex: Sokhna Diop"
-                      required
-                      value={adminName}
-                      onChange={(e) => setAdminName(e.target.value)}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white transition"
-                    />
-                  </div>
-
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-700">E-mail</label>
+                      <label className="text-xs font-bold text-slate-700">Prénom</label>
                       <input 
-                        type="email"
-                        placeholder="admin@sokhna.sn"
+                        type="text"
+                        placeholder="Ex: Sokhna"
                         required
-                        value={adminEmail}
-                        onChange={(e) => setAdminEmail(e.target.value)}
+                        value={prenom}
+                        onChange={(e) => setPrenom(e.target.value)}
                         className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white transition"
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-700">Mot de passe</label>
+                      <label className="text-xs font-bold text-slate-700">Nom</label>
+                      <input 
+                        type="text"
+                        placeholder="Ex: Diop"
+                        required
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white transition"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-700">E-mail de connexion</label>
+                      <input 
+                        type="email"
+                        placeholder="admin@sokhna.sn"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white transition"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-700">Mot de passe (min 6 car.)</label>
                       <input 
                         type="password"
                         placeholder="••••••••"
                         required
                         minLength={6}
-                        value={adminPassword}
-                        onChange={(e) => setAdminPassword(e.target.value)}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
                         className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white transition"
                       />
                     </div>
@@ -385,7 +418,7 @@ export default function LandingPage() {
                 </div>
 
                 <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl text-emerald-800 text-xs font-semibold max-w-sm mx-auto">
-                  🎉 Vos accès administrateur ont été créés.
+                  🎉 Vos accès administrateur ont été créés avec succès.
                 </div>
 
                 <div className="grid sm:grid-cols-2 gap-4 pt-4">
@@ -393,22 +426,22 @@ export default function LandingPage() {
                     href={successData.shopUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-5 bg-white border border-slate-200 rounded-2xl hover:border-teal-500 hover:bg-teal-50/20 transition flex flex-col items-center gap-3 text-center group"
+                    className="p-5 bg-white border border-slate-200 rounded-2xl hover:border-teal-500 hover:bg-teal-50/20 transition flex flex-col items-center gap-3 text-center group shadow-sm"
                   >
                     <Eye className="h-6 w-6 text-teal-600" />
                     <span className="font-extrabold text-sm text-slate-800">Voir ma boutique</span>
-                    <span className="text-xs text-slate-400 font-mono">https://easyjaay.baobapp.tech/{slug}</span>
+                    <span className="text-xs text-slate-400 font-mono break-all">{successData.shopUrl}</span>
                   </a>
 
                   <a 
                     href={successData.adminUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-5 bg-white border border-slate-200 rounded-2xl hover:border-teal-500 hover:bg-teal-50/20 transition flex flex-col items-center gap-3 text-center group"
+                    className="p-5 bg-white border border-slate-200 rounded-2xl hover:border-teal-500 hover:bg-teal-50/20 transition flex flex-col items-center gap-3 text-center group shadow-sm"
                   >
                     <Settings className="h-6 w-6 text-teal-600" />
                     <span className="font-extrabold text-sm text-slate-800">Gérer mes produits</span>
-                    <span className="text-xs text-slate-400 font-mono">https://easyjaayback.baobapp.tech/admin/login</span>
+                    <span className="text-xs text-slate-400 font-mono break-all">Accéder au panel Filament</span>
                   </a>
                 </div>
               </div>
