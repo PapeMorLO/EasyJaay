@@ -14,7 +14,8 @@ import {
   Loader2,
   Settings,
   Eye,
-  LogIn
+  LogIn,
+  Phone
 } from "lucide-react"
 
 interface SuccessData {
@@ -131,12 +132,11 @@ export default function LandingPage() {
       <nav className="border-b border-slate-100 bg-white/80 backdrop-blur-md sticky top-0 z-40 px-6 py-4">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-2.5">
-            <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-teal-600 text-white font-black text-xl shadow-md shadow-teal-100 overflow-hidden">
-              <Store className="h-5 w-5" />
-            </div>
-            <span className="font-extrabold text-xl tracking-tight text-slate-950">
-              DiayRek
-            </span>
+            <img 
+                src="images/icon.png"
+                alt=""
+                className="h-15 w-15 object-cover rounded-xl shadow-sm border border-slate-100"
+              />
           </div>
 
           <div className="flex items-center gap-3">
@@ -170,13 +170,13 @@ export default function LandingPage() {
           </span>
           
           <div className="space-y-4 max-w-3xl mx-auto">
-            <h1 className="text-3xl md:text-3xl font-black text-slate-955 tracking-tight leading-tight">
+            <h1 className="text-2xl md:text-3xl font-black text-slate-955 tracking-tight leading-tight">
               <span className="text-teal-600">Ma Boutique</span> — votre site à partager
             </h1>
-            <h1 className="text-3xl md:text-3xl font-black text-slate-955 tracking-tight leading-tight">
+            <h1 className="text-2xl md:text-3xl font-black text-slate-955 tracking-tight leading-tight">
               <span className="text-teal-600">Ma Vitrine</span> — vos produits sur les réseaux
             </h1>
-            <h1 className="text-3xl md:text-3xl font-black text-slate-955 tracking-tight leading-tight">
+            <h1 className="text-2xl md:text-3xl font-black text-slate-955 tracking-tight leading-tight">
               <span className="text-teal-600">Ma Caisse</span> — vos commandes sur WhatsApp
             </h1>
           </div>
@@ -242,6 +242,35 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* Footer Section */}
+      <footer className="bg-white border-t border-slate-100 py-12 px-6 mt-12">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+          <div className="flex items-center gap-2.5">
+            <img 
+              src="images/icon.png"
+              alt=""
+              className="h-15 w-15 object-cover rounded-xl shadow-sm border border-slate-100"
+            />
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-6 text-sm text-slate-500 font-medium text-center sm:text-left">
+            <div className="flex items-center gap-1.5 justify-center">
+              <Phone className="h-4 w-4 text-teal-650" />
+              <span className="font-bold">Contactez-nous :</span>
+            </div>
+            <div className="flex flex-wrap justify-center items-center gap-2.5">
+              <a href="tel:+221778762197" className="hover:text-teal-650 transition underline underline-offset-4 decoration-teal-100 font-semibold">+221 77 876 21 97</a>
+              <span className="hidden sm:inline text-slate-300">•</span>
+              <a href="tel:+221775416496" className="hover:text-teal-650 transition underline underline-offset-4 decoration-teal-100 font-semibold">+221 77 541 64 96</a>
+            </div>
+          </div>
+
+          <p className="text-xs text-slate-400 font-bold">
+            &copy; {new Date().getFullYear()} AKH. Tous droits réservés.
+          </p>
+        </div>
+      </footer>
 
       {/* Onboarding Modal */}
       {isModalOpen && (
@@ -352,7 +381,7 @@ export default function LandingPage() {
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-700">Nom</label>
+                      <label className="text-xs font-bold text-slate-700">Nom de famille</label>
                       <input 
                         type="text"
                         placeholder="Ex: Diop"

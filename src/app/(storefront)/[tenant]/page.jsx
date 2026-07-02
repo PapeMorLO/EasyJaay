@@ -1482,12 +1482,12 @@ function Footer({ shopName, brandColor, logo, whatsapp }) {
         <p className="flex items-center gap-1.5">
           <span>Propulsé par</span>
           <a 
-            href="https://easyjaay.com" 
+            href="https://easyjaay.baobapp.tech" 
             target="_blank" 
             rel="noopener noreferrer"
             className="font-extrabold text-slate-300 hover:text-white transition flex items-center gap-1"
           >
-            <span className="h-4 w-4 bg-teal-600 text-white rounded flex items-center justify-center font-black text-[9px]">Ej</span>
+            <span className="h-4 w-6 bg-teal-600 text-white rounded flex items-center justify-center font-black text-[9px]">AKH</span>
             <span>DiayRek</span>
           </a>
         </p>
