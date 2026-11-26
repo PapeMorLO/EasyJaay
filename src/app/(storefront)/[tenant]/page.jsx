@@ -720,6 +720,7 @@ function BarrePanier({ cartCount, montantTotal, brandColor, onOpen }) {
 // ==========================================
 // --- COMPOSANT : HERO CAROUSEL
 // ==========================================
+// [LOT1B-BOUTIQUE] correctif : ligne de grille bornée à la hauteur de la carte
 // [LOT1-BOUTIQUE] Bandeau « À la une » : texte sur fond foncé à gauche, photo sur fond blanc à droite
 // (sur téléphone : photo en fond assombri). Plus de texte blanc posé sur une photo claire.
 function HeroCarousel({ products, brandColor, onBuyNow }) {
@@ -745,10 +746,10 @@ function HeroCarousel({ products, brandColor, onBuyNow }) {
             <div
               key={prod.id}
               aria-hidden={!isActive}
-              className={`absolute inset-0 grid md:grid-cols-2 transition-opacity duration-700 ease-in-out ${isActive ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"}`}
+              className={`absolute inset-0 grid grid-rows-1 md:grid-cols-2 transition-opacity duration-700 ease-in-out ${isActive ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"}`}
             >
               {/* Photo : fond de la carte sur téléphone, moitié droite sur grand écran */}
-              <div className="absolute inset-0 md:static md:order-2 bg-white">
+              <div className="absolute inset-0 md:static md:order-2 md:h-full md:min-h-0 overflow-hidden bg-white">
                 <img
                   src={getImageUrl(prod.image1, BASE_URL)}
                   alt={prod.designation}
@@ -759,7 +760,7 @@ function HeroCarousel({ products, brandColor, onBuyNow }) {
               </div>
 
               {/* Texte */}
-              <div className="relative z-10 md:order-1 flex flex-col justify-center gap-3 px-6 md:px-12 pb-8">
+              <div className="relative z-10 min-h-0 md:order-1 flex flex-col justify-center gap-3 px-6 md:px-12 pb-8">
                 <span className="w-max text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-full bg-white/15 flex items-center gap-1.5">
                   <Sparkles className="h-3 w-3 text-yellow-300" /> À la une
                 </span>
