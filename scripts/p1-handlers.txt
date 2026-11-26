@@ -1,0 +1,85 @@
+  // Commande directe par WhatsApp depuis le modal (sans passer par le panier).
+  // Nouveau : la commande est ENREGISTRÉE avant d'ouvrir WhatsApp, donc le vendeur la voit dans son admin.
+  const handleDirectWhatsAppOrder = async (product, selectedSize, selectedColor) => {
+    if (!resolvedWhatsapp) {
+      showToast("Numéro WhatsApp non configuré.")
+      return
+    }
+    if (directEnCours.current) return   // évite le double clic
+    directEnCours.current = true
+
+    // 1. On enregistre la commande chez Laravel
+    const resultat = await envoyerCommandeDirecte({
+      slug: tenant,
+      produit: product,
+      taille: selectedSize,
+      couleur: selectedColor,
+    })
+
+    // 2. Le serveur REFUSE (ex : stock épuisé) : on prévient le client, WhatsApp ne s'ouvre pas
+    if (!resultat.ok && !resultat.reseau) {
+      showToast(resultat.message)
+      directEnCours.current = false
+      return
+    }
+
+    // 3. Enregistré (ou réseau coupé : on laisse passer, sans numéro de commande) -> WhatsApp
+    const message = messageDirect({
+      boutique: resolvedShopName,
+      numero: resultat.numero,
+      produit: product,
+      taille: selectedSize,
+      couleur: selectedColor,
+    })
+    window.location.href = lienWhatsapp(resolvedWhatsapp, message)
+
+    // Si le client revient avec la flèche "retour", le bouton doit refonctionner
+    setTimeout(() => { directEnCours.current = false }, 3000)
+  }
+
+  const handleCheckout = async (e) => {
+    e.preventDefault()
+    if (cart.length === 0 || submitting) return
+
+    if (!resolvedWhatsapp) {
+      showToast("Numéro WhatsApp non configuré pour cette boutique.")
+      return
+    }
+
+    setSubmitting(true)
+
+    const client = { nom: nomClient, phone: phoneClient, adresse }
+
+    // 1. On enregistre la commande chez Laravel (sans envoyer aucun prix : le serveur les connaît)
+    const resultat = await envoyerCommande({ slug: tenant, client, panier: cart })
+
+    // 2. Le serveur REFUSE (stock, article retiré...) : on garde le panier et on affiche pourquoi
+    if (!resultat.ok && !resultat.reseau) {
+      showToast(resultat.message)
+      setSubmitting(false)
+      return
+    }
+
+    // 3. Message WhatsApp avec le numéro de commande. Le total vient du SERVEUR (prix à jour).
+    const message = messageCommande({
+      boutique: resolvedShopName,
+      numero: resultat.numero,
+      client,
+      panier: cart,
+      total: resultat.total ?? montantTotal,
+      livraisonGratuite: resolvedTypeLivraison === "gratuit",
+    })
+    const urlWhatsApp = lienWhatsapp(resolvedWhatsapp, message)   // construit AVANT de vider le panier
+
+    // 4. Nettoyage du panier, puis WhatsApp
+    setCart([])
+    localStorage.removeItem(`cart_${tenant}`)
+    setIsCartOpen(false)
+    setNomClient("")
+    setPhoneClient("")
+    setAdresse("")
+    setSubmitting(false)
+
+    window.location.href = urlWhatsApp
+  }
+

@@ -1,0 +1,122 @@
+/* ==========================================================================
+   Couleurs, boutons et animations de la page d'accueil et de l'inscription.
+   POUR CHANGER LA PALETTE : modifie seulement les variables --c-* ci-dessous.
+   (Les pages les utilisent via bg-[var(--c-main)], text-[var(--c-dark)], etc.)
+   ========================================================================== */
+:root {
+  --c-main: #e8624f;   /* corail : boutons principaux */
+  --c-dark: #1b1035;   /* encre (violet très foncé) : fonds foncés et texte */
+  --c-ink2: #2c1f52;   /* encre un peu plus claire : cartes sur fond foncé */
+  --c-soft: #fbf3e4;   /* crème : fond de page */
+  --c-soft2: #f2e8d3;  /* crème foncé : sections alternées */
+  --c-accent: #f4a70a; /* safran : accent, boutons sur fond foncé */
+  --c-teal: #1c7c74;   /* vert-bleu : petits titres, détails */
+}
+
+html { scroll-behavior: smooth; }
+section[id] { scroll-margin-top: 72px; } /* l'ancre ne passe pas sous le menu collant */
+
+/* Titres en serif (police Fraunces, variable --font-titres définie dans lib/police.ts) */
+.titre { font-family: var(--font-titres), Georgia, serif; letter-spacing: -0.01em; }
+
+/* ---------- Boutons à ombre dure : ils s'enfoncent quand on appuie ---------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font-weight: 700; padding: 14px 26px; border-radius: 9999px; border: 2px solid transparent;
+  text-decoration: none; cursor: pointer; transition: transform .15s ease, box-shadow .15s ease;
+}
+.btn:focus-visible { outline: 3px solid var(--c-teal); outline-offset: 3px; }
+/* texte foncé sur corail/safran : meilleur contraste que du blanc */
+.btn-corail { background: var(--c-main); color: var(--c-dark); box-shadow: 0 6px 0 #b8402f; }
+.btn-corail:hover { transform: translateY(2px); box-shadow: 0 4px 0 #b8402f; }
+.btn-corail:active { transform: translateY(6px); box-shadow: 0 0 0 #b8402f; }
+.btn-safran { background: var(--c-accent); color: var(--c-dark); box-shadow: 0 6px 0 #b57c05; }
+.btn-safran:hover { transform: translateY(2px); box-shadow: 0 4px 0 #b57c05; }
+.btn-safran:active { transform: translateY(6px); box-shadow: 0 0 0 #b57c05; }
+.btn-whatsapp { background: #25d366; color: #0b3d1f; box-shadow: 0 6px 0 #178a43; }
+.btn-whatsapp:hover { transform: translateY(2px); box-shadow: 0 4px 0 #178a43; }
+.btn-whatsapp:active { transform: translateY(6px); box-shadow: 0 0 0 #178a43; }
+.btn-contour { background: transparent; border-color: currentColor; }
+.btn-contour:hover { background: rgba(255, 255, 255, .1); }
+
+/* ---------- Frange de triangles safran (motif des tissus) ----------
+   Image répétée : les triangles gardent leur forme sur tous les écrans.
+   (la couleur #f4a70a est écrite en dur car un fichier image ne lit pas les variables CSS) */
+.frange {
+  height: 14px; background-repeat: repeat-x; background-size: 24px 14px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='14'%3E%3Cpolygon points='0,0 24,0 12,14' fill='%23f4a70a'/%3E%3C/svg%3E");
+}
+
+/* ---------- Apparition au chargement (haut de la page d'accueil) ---------- */
+@keyframes monter { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+.entree   { animation: monter .7s ease-out both; }
+.entree-2 { animation: monter .7s .15s ease-out both; }
+.entree-3 { animation: monter .7s .3s ease-out both; }
+
+/* ---------- Apparition au scroll (composant Reveal) ---------- */
+.reveal-pre { opacity: 0; transform: translateY(24px); }
+.reveal-in  { opacity: 1; transform: none; transition: opacity .6s ease-out, transform .6s ease-out; }
+
+/* ---------- Cartes qui se soulèvent ---------- */
+.carte-hover { transition: transform .2s ease, box-shadow .2s ease; }
+.carte-hover:hover { transform: translateY(-4px); box-shadow: 0 12px 28px -12px rgba(27, 16, 53, .35); }
+
+/* ---------- FAQ : la réponse glisse à l'ouverture ---------- */
+details[open] > p { animation: monter .35s ease-out both; }
+
+/* ---------- Bande de produits qui défile (hero) ---------- */
+@keyframes defile { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.defile { display: flex; width: max-content; animation: defile 35s linear infinite; }
+.defile:hover { animation-play-state: paused; }
+
+/* ---------- Téléphone animé : une boucle de 9 secondes ----------
+   0-20%  le doigt arrive sur « Baskets »   |  20-35% la carte est sélectionnée
+   35-50% le doigt va sur « Commander » et appuie  |  52-90% la notification apparaît en haut
+   Tout est en CSS : aucune ligne de JavaScript. */
+.tel-boucle { --duree: 9s; }
+
+@keyframes tel-doigt {
+  0%   { opacity: 0; top: 95%; left: 85%; transform: scale(1); }
+  8%   { opacity: 1; }
+  22%  { top: 38%; left: 30%; transform: scale(1); }
+  26%  { top: 38%; left: 30%; transform: scale(.85); }
+  30%  { top: 38%; left: 30%; transform: scale(1); }
+  45%  { top: 88%; left: 50%; transform: scale(1); }
+  48%  { top: 88%; left: 50%; transform: scale(.85); }
+  52%  { top: 88%; left: 50%; transform: scale(1); opacity: 1; }
+  60%  { opacity: 0; top: 95%; left: 70%; }
+  100% { opacity: 0; top: 95%; left: 85%; }
+}
+.tel-doigt { animation: tel-doigt var(--duree) ease-in-out infinite; }
+
+@keyframes tel-carte {
+  0%, 22%   { box-shadow: none; border-color: #f1f5f9; transform: none; }
+  27%, 55%  { box-shadow: 0 0 0 2px #e8624f; border-color: #e8624f; transform: scale(1.04); }
+  62%, 100% { box-shadow: none; border-color: #f1f5f9; transform: none; }
+}
+.tel-carte-cible { animation: tel-carte var(--duree) ease-in-out infinite; }
+
+@keyframes tel-bouton {
+  0%, 44%   { transform: none; filter: none; }
+  48%       { transform: scale(.94); filter: brightness(.9); }
+  54%, 100% { transform: none; filter: none; }
+}
+.tel-bouton { animation: tel-bouton var(--duree) ease-in-out infinite; }
+
+@keyframes tel-notif {
+  0%, 50%   { transform: translateY(-130%); opacity: 0; }
+  56%       { transform: translateY(0); opacity: 1; }
+  90%       { transform: translateY(0); opacity: 1; }
+  96%, 100% { transform: translateY(-130%); opacity: 0; }
+}
+.tel-notif { animation: tel-notif var(--duree) ease-in-out infinite; }
+
+/* ---------- Respect des personnes qui ont désactivé les animations ---------- */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .entree, .entree-2, .entree-3, .tel-doigt, .tel-carte-cible, .tel-bouton, .defile { animation: none !important; }
+  .tel-notif { animation: none !important; transform: none; opacity: 1; }
+  .reveal-pre { opacity: 1; transform: none; }
+  .carte-hover:hover, .btn:hover, .btn:active { transform: none; }
+  details[open] > p { animation: none; }
+}

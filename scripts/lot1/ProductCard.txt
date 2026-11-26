@@ -1,0 +1,95 @@
+// ==========================================
+// --- COMPOSANT : CARTE PRODUIT
+// ==========================================
+// [LOT1-BOUTIQUE] Plus de texte « Aucune description… » quand il n'y a pas de description,
+// plus de ligne « PRIX » inutile, bouton lisible sur toutes les couleurs, photos chargées à la demande.
+function ProductCard({ product, brandColor, onAddToCart, onOpenDetails, parseOption }) {
+  const isOutOfStock = product.quantite_stock <= 0
+  const isLowStock = product.quantite_stock > 0 && product.quantite_stock <= 5
+
+  // Analyse des options pour afficher de petits badges sur la photo
+  const hasSizes = parseOption(product.taille_dimension).length > 0;
+  const hasColors = parseOption(product.color).length > 0;
+
+  return (
+    <div
+      onClick={() => !isOutOfStock && onOpenDetails(product)}
+      className="group bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl hover:border-slate-200 transition-all duration-300 flex flex-col justify-between cursor-pointer relative"
+    >
+      {/* Photo */}
+      <div className="aspect-square bg-slate-50 relative overflow-hidden">
+        <img
+          src={getImageUrl(product.image1, BASE_URL)}
+          alt={product.designation}
+          loading="lazy"
+          decoding="async"
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          onError={(e) => { (e.target).src = "https://placehold.co/300x300?text=Produit" }}
+        />
+
+        {isLowStock && (
+          <span className="absolute top-3 left-3 bg-amber-500 text-white font-extrabold text-[10px] px-2.5 py-1 rounded-lg uppercase tracking-wider shadow-sm z-10 flex items-center gap-1">
+            <Clock className="h-3 w-3" /> Stock limité
+          </span>
+        )}
+
+        {isOutOfStock && (
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-[1px] flex items-center justify-center z-10">
+            <span className="bg-red-600 text-white font-black text-xs px-4 py-2 rounded-xl uppercase tracking-widest shadow-md">
+              Épuisé
+            </span>
+          </div>
+        )}
+
+        {!isOutOfStock && (hasSizes || hasColors) && (
+          <div className="absolute bottom-2 left-2 flex gap-1 z-10">
+            {hasSizes && (
+              <span className="bg-white/90 backdrop-blur-sm text-[9px] font-bold text-slate-800 px-2 py-0.5 rounded-md flex items-center gap-1 shadow-sm border border-slate-100">
+                <Layers className="h-2.5 w-2.5 text-slate-500" /> Choix de tailles
+              </span>
+            )}
+            {hasColors && (
+              <span className="bg-white/90 backdrop-blur-sm text-[9px] font-bold text-slate-800 px-2 py-0.5 rounded-md flex items-center gap-1 shadow-sm border border-slate-100">
+                <Palette className="h-2.5 w-2.5 text-slate-500" /> Couleurs
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Nom, description (seulement s'il y en a une), prix, bouton */}
+      <div className="p-4 flex flex-col justify-between flex-grow">
+        <div className="space-y-1">
+          <h4 className="font-bold text-slate-800 text-sm md:text-base line-clamp-2">
+            {product.designation}
+          </h4>
+          {product.description && (
+            <p className="text-xs text-slate-400 line-clamp-2">{product.description}</p>
+          )}
+        </div>
+
+        <div className="mt-3 flex flex-col gap-2.5">
+          <span className="font-black text-slate-900 text-base md:text-lg whitespace-nowrap">
+            {numberFormat(product.prix_vente)} F
+          </span>
+
+          <button
+            disabled={isOutOfStock}
+            onClick={(e) => {
+              e.stopPropagation()
+              onOpenDetails(product)
+            }}
+            style={{
+              backgroundColor: isOutOfStock ? "#f1f5f9" : brandColor,
+              color: isOutOfStock ? "#94a3b8" : couleurTexte(brandColor)
+            }}
+            className="w-full py-2.5 rounded-xl font-bold text-sm transition-all duration-150 active:scale-95 text-center flex items-center justify-center gap-1.5 shadow-sm hover:opacity-90 disabled:cursor-not-allowed"
+          >
+            {isOutOfStock ? "Épuisé" : "Voir l'article"}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+

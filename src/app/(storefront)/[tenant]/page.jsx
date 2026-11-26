@@ -1,6 +1,9 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
+import { suivre } from "../../../lib/track"
+import { envoyerCommande, envoyerCommandeDirecte } from "../../../lib/commande"
+import { messageCommande, messageDirect, lienWhatsapp } from "../../../lib/whatsapp"
 import { 
   ShoppingBag, 
   Bell, 
@@ -18,6 +21,13 @@ import {
   Search,
   X
 } from "lucide-react"
+// [LOT2B-BOUTIQUE] pied de page unique (infos du vendeur + copyright), à la place du cadre blanc d'infos et de l'ancien Footer
+import PiedDePage from "../../../components/PiedDePage"
+// [LOT2-BOUTIQUE] infos du vendeur : chargées une seule fois, affichées en haut, dans le panier et sur la fiche produit
+import { useInfosBoutique } from "../../../lib/useInfosBoutique"
+import { libellesPaiements } from "../../../lib/infos"
+import BandeauConfiance from "../../../components/BandeauConfiance"
+import InfosCommande from "../../../components/InfosCommande"
 
 // URL de votre serveur de production ou local
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://easyjaayback.baobapp.tech";
@@ -26,6 +36,18 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://easyjaayback.baobap
 function numberFormat(number) {
   if (number === undefined || number === null) return "0"
   return new Intl.NumberFormat('fr-FR').format(number)
+}
+
+// [LOT1-BOUTIQUE] Choisit le texte à poser sur la couleur du vendeur : blanc sur une couleur foncée, presque noir sur une couleur claire.
+// (calcul de luminosité du standard d'accessibilité WCAG)
+function couleurTexte(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec((hex || "").trim())
+  if (!m) return "#ffffff"
+  const n = parseInt(m[1], 16)
+  const lin = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4) }
+  const L = 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255)
+  // contraste avec du blanc vs contraste avec du foncé : on garde le meilleur
+  return 1.05 / (L + 0.05) >= (L + 0.05) / 0.06 ? "#ffffff" : "#0f172a"
 }
 
 // Fonction de résolution intelligente pour la galerie d'images du modal
@@ -91,6 +113,10 @@ export default function StorefrontPage({ params }) {
   const [adresse, setAdresse] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [toastMessage, setToastMessage] = useState(null)
+  const directEnCours = useRef(false) // anti double-clic sur "Acheter direct sur WhatsApp"
+
+  // [LOT2-BOUTIQUE] Infos du vendeur (livraison, paiements, contacts...). Démarre aussi le Pixel Facebook de la boutique.
+  const infos = useInfosBoutique(tenant)
 
   // Résolution sécurisée de la promesse params exigée par Next.js 15
   useEffect(() => {
@@ -173,6 +199,7 @@ export default function StorefrontPage({ params }) {
         // TRACKING DE VISITE DE LA BOUTIQUE (sans doublons par session client)
         const trackKey = `tracked_shop_${tenant}`
         if (!sessionStorage.getItem(trackKey)) {
+          suivre(tenant, "visite_boutique")
           fetch(`${BASE_URL}/api/shops/${tenant}/increment-view`, {
             method: "POST",
             keepalive: true,
@@ -208,6 +235,7 @@ export default function StorefrontPage({ params }) {
   // Fonction d'ouverture d'un produit avec incrémentation des statistiques de consultation
   const handleOpenProductDetails = (product) => {
     setSelectedProduct(product)
+    suivre(tenant, "vue_produit", product.id)
 
     // TRACKING DU PRODUIT LE PLUS VISITÉ
     fetch(`${BASE_URL}/api/products/${product.id}/increment-view`, {
@@ -221,8 +249,8 @@ export default function StorefrontPage({ params }) {
       <div className="flex items-center justify-center min-h-screen bg-slate-50">
         <div className="relative flex h-16 w-16 items-center justify-center">
           {/* MODIFICATION : Animation de chargement beaucoup plus lumineuse et visible (Teal/Turquoise éclatant) */}
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-500 opacity-25"></span>
-          <div className="animate-spin rounded-full h-10 w-10 border-4 border-teal-600 border-t-transparent"></div>
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-400 opacity-25"></span>
+          <div className="animate-spin rounded-full h-10 w-10 border-4 border-slate-500 border-t-transparent"></div>
         </div>
       </div>
     )
@@ -231,7 +259,7 @@ export default function StorefrontPage({ params }) {
   if (!shop) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 px-4 text-center">
-        <div className="text-6xl mb-4 animate-bounce">🏪</div>
+        <ShoppingBag className="h-14 w-14 text-slate-300 mb-4" />
         <h1 className="text-3xl font-extrabold text-slate-800 mb-2">Oups ! Boutique introuvable</h1>
         <p className="text-slate-500 max-w-md">
           L&apos;adresse <code className="bg-slate-200 px-2 py-1 rounded text-red-600 font-mono text-sm">{tenant}</code> n&apos;est pas active ou est incorrecte.
@@ -295,6 +323,7 @@ export default function StorefrontPage({ params }) {
       return [...prev, { product, quantity: 1 }]
     })
     setIsCartOpen(true)
+    suivre(tenant, "ajout_panier", product.id)
   }
 
   const updateQuantity = (productId, selectedSize = "", selectedColor = "", delta) => {
@@ -354,30 +383,43 @@ export default function StorefrontPage({ params }) {
 
   const filteredProducts = getFilteredProducts()
 
-  // Commande directe par WhatsApp depuis le modal (Sans passer par le panier)
-  const handleDirectWhatsAppOrder = (product, selectedSize, selectedColor) => {
+  // Commande directe par WhatsApp depuis le modal (sans passer par le panier).
+  // Nouveau : la commande est ENREGISTRÉE avant d'ouvrir WhatsApp, donc le vendeur la voit dans son admin.
+  const handleDirectWhatsAppOrder = async (product, selectedSize, selectedColor) => {
     if (!resolvedWhatsapp) {
       showToast("Numéro WhatsApp non configuré.")
       return
     }
+    if (directEnCours.current) return   // évite le double clic
+    directEnCours.current = true
 
-    let messageText = `*Intérêt d'achat direct sur ${resolvedShopName}*\n\n`
-    messageText += `👟 *Article :* ${product.designation}\n`
-    if (selectedSize) messageText += `📏 *Pointure/Taille :* ${selectedSize}\n`
-    if (selectedColor) messageText += `🎨 *Couleur :* ${selectedColor}\n`
-    messageText += `💵 *Prix :* ${numberFormat(product.prix_vente)} FCFA\n\n`
-    messageText += `Bonjour, je souhaite commander cet article en direct. Est-il disponible pour livraison ?`
+    // 1. On enregistre la commande chez Laravel
+    const resultat = await envoyerCommandeDirecte({
+      slug: tenant,
+      produit: product,
+      taille: selectedSize,
+      couleur: selectedColor,
+    })
 
-    const formattedWhatsapp = resolvedWhatsapp.replace(/\D/g, "")
-    const urlWhatsApp = `https://wa.me/${formattedWhatsapp}?text=${encodeURIComponent(messageText)}`
-    
-    // Log visite produit avant redirection
-    fetch(`${BASE_URL}/api/products/${product.id}/increment-view`, {
-      method: "POST",
-      keepalive: true,
-    }).catch(() => {})
+    // 2. Le serveur REFUSE (ex : stock épuisé) : on prévient le client, WhatsApp ne s'ouvre pas
+    if (!resultat.ok && !resultat.reseau) {
+      showToast(resultat.message)
+      directEnCours.current = false
+      return
+    }
 
-    window.location.href = urlWhatsApp
+    // 3. Enregistré (ou réseau coupé : on laisse passer, sans numéro de commande) -> WhatsApp
+    const message = messageDirect({
+      boutique: resolvedShopName,
+      numero: resultat.numero,
+      produit: product,
+      taille: selectedSize,
+      couleur: selectedColor,
+    })
+    window.location.href = lienWhatsapp(resolvedWhatsapp, message)
+
+    // Si le client revient avec la flèche "retour", le bouton doit refonctionner
+    setTimeout(() => { directEnCours.current = false }, 3000)
   }
 
   const handleCheckout = async (e) => {
@@ -391,74 +433,39 @@ export default function StorefrontPage({ params }) {
 
     setSubmitting(true)
 
-    // 1. Préparation des données pour la commande
-    const payload = {
-      entreprise_slug: tenant,
-      nom_client: nomClient,
-      phone_client: phoneClient,
-      adresse_livraison: adresse,
-      montant_total: montantTotal,
-      produits: cart.map((item) => ({
-        id: item.product.id,
-        quantite: item.quantity,
-        prix_unitaire: item.product.prix_vente,
-        selected_size: item.product.selectedSize || null,
-        selected_color: item.product.selectedColor || null,
-      })),
-    }
+    const client = { nom: nomClient, phone: phoneClient, adresse }
 
-    // 2. Construction du message WhatsApp en avance (au cas où l'API Laravel met du temps)
-    let messageText = `*Nouvelle commande sur la boutique ${resolvedShopName}*\n\n`
-    messageText += `👤 *Client :* ${nomClient}\n`
-    messageText += `📞 *Téléphone :* ${phoneClient}\n`
-    messageText += `📍 *Livraison :* ${adresse}\n`
-    messageText += `🚚 *Mode de livraison :* ${resolvedTypeLivraison === 'gratuit' ? 'Gratuite (Offerte !)' : 'Selon zone (à convenir)'}\n\n`
-    messageText += `🛒 *Articles commandés :*\n`
-    
-    cart.forEach((item) => {
-      const optionDetails = []
-      if (item.product.selectedSize) optionDetails.push(`Taille: ${item.product.selectedSize}`)
-      if (item.product.selectedColor) optionDetails.push(`Couleur: ${item.product.selectedColor}`)
-      const optionString = optionDetails.length > 0 ? ` [${optionDetails.join(", ")}]` : ""
-      
-      messageText += `- *${item.quantity}x* ${item.product.designation}${optionString} (${numberFormat(item.product.prix_vente * item.quantity)} FCFA)\n`
-    })
-    
-    messageText += `\n💵 *TOTAL : ${numberFormat(montantTotal)} FCFA*`
+    // 1. On enregistre la commande chez Laravel (sans envoyer aucun prix : le serveur les connaît)
+    const resultat = await envoyerCommande({ slug: tenant, client, panier: cart })
 
-    const formattedWhatsapp = resolvedWhatsapp.replace(/\D/g, "")
-    const urlWhatsApp = `https://wa.me/${formattedWhatsapp}?text=${encodeURIComponent(messageText)}`
-
-    try {
-      // 3. On tente d'enregistrer en BDD chez Laravel en arrière-plan
-      await fetch(`${BASE_URL}/api/commandes`, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "Accept": "application/json"
-        },
-        body: JSON.stringify(payload),
-      }).catch((err) => {
-        console.warn("Erreur BDD ignorée pour privilégier WhatsApp:", err)
-      })
-
-      // 4. NETTOYAGE DU PANIER LOCAL AVANT DE QUITTER
-      setCart([])
-      localStorage.removeItem(`cart_${tenant}`)
-      setIsCartOpen(false)
-      setNomClient("")
-      setPhoneClient("")
-      setAdresse("")
-      
-      // 5. REDIRECTION SANS POPUP BLOQUÉ
-      window.location.href = urlWhatsApp
-
-    } catch (err) {
-      console.error("Erreur lors du checkout:", err)
-      window.location.href = urlWhatsApp
-    } finally {
+    // 2. Le serveur REFUSE (stock, article retiré...) : on garde le panier et on affiche pourquoi
+    if (!resultat.ok && !resultat.reseau) {
+      showToast(resultat.message)
       setSubmitting(false)
+      return
     }
+
+    // 3. Message WhatsApp avec le numéro de commande. Le total vient du SERVEUR (prix à jour).
+    const message = messageCommande({
+      boutique: resolvedShopName,
+      numero: resultat.numero,
+      client,
+      panier: cart,
+      total: resultat.total ?? montantTotal,
+      livraisonGratuite: resolvedTypeLivraison === "gratuit",
+    })
+    const urlWhatsApp = lienWhatsapp(resolvedWhatsapp, message)   // construit AVANT de vider le panier
+
+    // 4. Nettoyage du panier, puis WhatsApp
+    setCart([])
+    localStorage.removeItem(`cart_${tenant}`)
+    setIsCartOpen(false)
+    setNomClient("")
+    setPhoneClient("")
+    setAdresse("")
+    setSubmitting(false)
+
+    window.location.href = urlWhatsApp
   }
 
   return (
@@ -483,18 +490,13 @@ export default function StorefrontPage({ params }) {
         </div>
       )}
 
-      {/* Bandeau d'annonce Livraison tout en haut */}
-      <div 
-        style={{ backgroundColor: brandColor }}
-        className="w-full text-white py-2 text-center text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm px-4"
-      >
-        <Truck className="h-4 w-4 animate-bounce" />
-        {resolvedTypeLivraison === 'gratuit' ? (
-          <span className="inline-block">La livraison est offerte !</span>
-        ) : (
-          <span> Livraison rapide disponible partout (frais selon votre zone)</span>
-        )}
-      </div>
+      {/* [LOT2-BOUTIQUE] Bandeau de confiance : livraison, paiements, lien vers les infos */}
+      <BandeauConfiance
+        infos={infos}
+        typeLivraison={resolvedTypeLivraison}
+        fond={brandColor}
+        texte={couleurTexte(brandColor)}
+      />
 
       {/* 1. COMPOSANT : HEADER */}
       <Header 
@@ -507,7 +509,7 @@ export default function StorefrontPage({ params }) {
 
       {/* 2. COMPOSANT : HERO CAROUSEL */}
       <HeroCarousel 
-        products={resolvedProducts.slice(0, 3)} 
+        products={resolvedProducts.filter((p) => p.quantite_stock > 0).slice(0, 3)} 
         brandColor={brandColor} 
         onBuyNow={handleOpenProductDetails}
       />
@@ -520,7 +522,7 @@ export default function StorefrontPage({ params }) {
           <div className="relative w-full">
             <input 
               type="text" 
-              placeholder="Rechercher une paire, une marque, un vêtement..." 
+              placeholder="Rechercher un produit..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-12 pr-10 py-3.5 bg-white border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-350 text-slate-800 shadow-sm transition-all placeholder:text-slate-400"
@@ -539,6 +541,7 @@ export default function StorefrontPage({ params }) {
 
         {/* 3. COMPOSANT : FILTRES CAPSULES */}
         <CategoryFilters 
+          showLowStock={resolvedProducts.some((p) => p.quantite_stock > 0 && p.quantite_stock <= 5)} 
           activeFilter={activeFilter} 
           brandColor={brandColor}
           onSelectFilter={setActiveFilter} 
@@ -554,7 +557,7 @@ export default function StorefrontPage({ params }) {
 
         {filteredProducts.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-3xl border border-slate-100 shadow-sm max-w-lg mx-auto">
-            <span className="text-5xl mb-4 block">📦</span>
+            <Search className="h-10 w-10 text-slate-300 mx-auto mb-4" />
             <p className="text-slate-500 font-semibold text-lg">Aucun article ne correspond à votre recherche.</p>
           </div>
         ) : (
@@ -575,6 +578,7 @@ export default function StorefrontPage({ params }) {
 
       {/* 5. COMPOSANT : TIROIR PANIER & FORMULAIRE */}
       <CartDrawer 
+        infos={infos} 
         isOpen={isCartOpen}
         cart={cart}
         montantTotal={montantTotal}
@@ -595,6 +599,7 @@ export default function StorefrontPage({ params }) {
 
       {/* 6. COMPOSANT : MODAL DETAILS PRODUIT AVEC SELECTION DES OPTIONS */}
       <ProductDetailModal
+        infos={infos}
         isOpen={!!selectedProduct}
         product={selectedProduct}
         brandColor={brandColor}
@@ -605,13 +610,25 @@ export default function StorefrontPage({ params }) {
         cartCount={cartCount}
       />
 
-      {/* 7. COMPOSANT : FOOTER */}
-      <Footer 
+      {/* [LOT2B-BOUTIQUE] 7. PIED DE PAGE : infos du vendeur, paiements, contacts, réseaux */}
+      <PiedDePage
+        infos={infos}
         shopName={resolvedShopName}
         brandColor={brandColor}
-        logo={resolvedLogo}
+        logoUrl={resolvedLogo ? getImageUrl(resolvedLogo, BASE_URL) : null}
+        texteSurCouleur={couleurTexte(brandColor || "#10b981")}
         whatsapp={resolvedWhatsapp}
       />
+
+      {/* [LOT1-BOUTIQUE] BARRE PANIER FIXE (téléphone) : visible seulement quand le panier n'est pas vide */}
+      {cartCount > 0 && !isCartOpen && !selectedProduct && (
+        <BarrePanier
+          cartCount={cartCount}
+          montantTotal={montantTotal}
+          brandColor={brandColor}
+          onOpen={() => setIsCartOpen(true)}
+        />
+      )}
 
       {/* 8. BOUTON FLOATING WHATSAPP */}
       {resolvedWhatsapp && (
@@ -619,7 +636,7 @@ export default function StorefrontPage({ params }) {
           href={`https://wa.me/${resolvedWhatsapp.replace(/\D/g, "")}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="fixed bottom-6 right-6 z-50 flex items-center justify-center h-14 w-14 rounded-full bg-emerald-500 text-white shadow-2xl hover:bg-emerald-600 hover:scale-110 active:scale-95 transition-all duration-300 group"
+          className={`fixed ${cartCount > 0 ? "bottom-24 md:bottom-6" : "bottom-6"} right-6 z-50 flex items-center justify-center h-14 w-14 rounded-full bg-emerald-500 text-white shadow-2xl hover:bg-emerald-600 hover:scale-110 active:scale-95 transition-all duration-300 group`}
           title="Contacter le vendeur"
         >
           <MessageCircle className="h-7 w-7 fill-white/10" />
@@ -635,41 +652,45 @@ export default function StorefrontPage({ params }) {
 // ==========================================
 // --- COMPOSANT : HEADER
 // ==========================================
+// [LOT1-BOUTIQUE] En-tête compact. Le texte reste lisible quelle que soit la couleur choisie par le vendeur
+// (couleurTexte() choisit blanc ou foncé selon la couleur de fond).
 function Header({ shopName, cartCount, brandColor, logo, onCartClick }) {
   const safeShopName = shopName || "Boutique"
   const safeBrandColor = brandColor || "#10b981"
-  
+  const texteSurMarque = couleurTexte(safeBrandColor)
+
   return (
-    <header className="sticky top-0 bg-white/80 backdrop-blur-md border-b border-slate-100 z-40 px-4 md:px-8 py-4">
-      <div className="max-w-6xl mx-auto flex justify-between items-center">
-        <div className="flex items-center gap-3">
+    <header className="sticky top-0 bg-white/90 backdrop-blur-md border-b border-slate-100 z-40 px-4 md:px-8 py-3">
+      <div className="max-w-6xl mx-auto flex justify-between items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           {logo ? (
-            <img 
-              src={getImageUrl(logo, BASE_URL)} 
-              alt={safeShopName} 
-              className="h-10 w-10 object-cover rounded-xl shadow-sm border border-slate-100"
+            <img
+              src={getImageUrl(logo, BASE_URL)}
+              alt={safeShopName}
+              className="h-10 w-10 object-cover rounded-xl shadow-sm border border-slate-100 shrink-0"
               onError={(e) => { e.target.style.display = 'none'; }}
             />
           ) : (
-            <div 
-              className="h-10 w-10 flex items-center justify-center rounded-xl font-extrabold text-white shadow-sm text-lg" 
-              style={{ backgroundColor: safeBrandColor }}
+            <div
+              className="h-10 w-10 flex items-center justify-center rounded-xl font-extrabold shadow-sm text-lg shrink-0"
+              style={{ backgroundColor: safeBrandColor, color: texteSurMarque }}
             >
               {safeShopName.charAt(0).toUpperCase()}
             </div>
           )}
-          <h1 className="font-extrabold text-xl tracking-tight text-slate-900">{safeShopName}</h1>
+          <h1 className="font-extrabold text-lg md:text-xl tracking-tight text-slate-900 truncate">{safeShopName}</h1>
         </div>
 
-        <button 
+        <button
           onClick={onCartClick}
-          className="relative h-11 w-11 flex items-center justify-center rounded-2xl bg-slate-50 border border-slate-100 text-slate-700 hover:bg-slate-100 transition-all duration-200 active:scale-95 shadow-sm"
+          aria-label="Ouvrir le panier"
+          className="relative h-11 w-11 shrink-0 flex items-center justify-center rounded-2xl bg-slate-50 border border-slate-100 text-slate-700 hover:bg-slate-100 transition-all duration-200 active:scale-95 shadow-sm"
         >
           <ShoppingBag className="h-5 w-5" />
           {cartCount > 0 && (
-            <span 
-              className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full text-[10px] font-extrabold text-white flex items-center justify-center animate-pulse"
-              style={{ backgroundColor: safeBrandColor }}
+            <span
+              className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full text-[10px] font-extrabold flex items-center justify-center"
+              style={{ backgroundColor: safeBrandColor, color: texteSurMarque }}
             >
               {cartCount}
             </span>
@@ -680,60 +701,78 @@ function Header({ shopName, cartCount, brandColor, logo, onCartClick }) {
   )
 }
 
+// [LOT1-BOUTIQUE] Barre fixe en bas de l'écran (téléphone) : le client voit son panier et peut commander en un clic.
+function BarrePanier({ cartCount, montantTotal, brandColor, onOpen }) {
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-40 p-3 md:hidden bg-gradient-to-t from-white via-white/95 to-transparent">
+      <button
+        onClick={onOpen}
+        style={{ backgroundColor: brandColor, color: couleurTexte(brandColor) }}
+        className="w-full flex items-center justify-between rounded-2xl px-5 py-4 font-bold shadow-xl active:scale-95 transition"
+      >
+        <span className="flex items-center gap-2"><ShoppingBag className="h-5 w-5" /> Panier ({cartCount})</span>
+        <span>Commander · {numberFormat(montantTotal)} F</span>
+      </button>
+    </div>
+  )
+}
+
 // ==========================================
 // --- COMPOSANT : HERO CAROUSEL
 // ==========================================
+// [LOT1-BOUTIQUE] Bandeau « À la une » : texte sur fond foncé à gauche, photo sur fond blanc à droite
+// (sur téléphone : photo en fond assombri). Plus de texte blanc posé sur une photo claire.
 function HeroCarousel({ products, brandColor, onBuyNow }) {
   const [currentIndex, setCurrentIndex] = useState(0)
+  const slides = products.filter((p) => p.image1)   // seulement les produits qui ont une photo
 
   useEffect(() => {
-    if (products.length <= 1) return
+    if (slides.length <= 1) return
     const interval = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % products.length)
-    }, 4500)
+      setCurrentIndex((prev) => (prev + 1) % slides.length)
+    }, 5000)
     return () => clearInterval(interval)
-  }, [products])
+  }, [slides.length])
 
-  if (products.length === 0) return null
+  if (slides.length === 0) return null
 
   return (
-    <section className="px-4 mt-6 max-w-6xl mx-auto">
-      <div className="relative h-[320px] md:h-[400px] w-full rounded-3xl overflow-hidden bg-slate-900 text-white shadow-xl shadow-slate-100">
-        
-        {/* Background Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/45 to-transparent z-10" />
-
-        {/* Slide Content */}
-        {products.map((prod, index) => {
+    <section className="px-4 mt-4 max-w-6xl mx-auto">
+      <div className="relative h-[260px] md:h-[340px] w-full rounded-3xl overflow-hidden bg-slate-900 text-white shadow-lg">
+        {slides.map((prod, index) => {
           const isActive = index === currentIndex
           return (
-            <div 
+            <div
               key={prod.id}
-              className={`absolute inset-0 flex items-center px-6 md:px-16 transition-opacity duration-1000 ease-in-out ${isActive ? "opacity-100 z-10" : "opacity-0 z-0"}`}
+              aria-hidden={!isActive}
+              className={`absolute inset-0 grid md:grid-cols-2 transition-opacity duration-700 ease-in-out ${isActive ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"}`}
             >
-              {/* Product Background Image */}
-              {prod.image1 && (
-                <img 
-                  src={getImageUrl(prod.image1, BASE_URL)} 
-                  alt={prod.designation} 
-                  className="absolute right-0 top-0 h-full w-full md:w-2/3 object-cover opacity-60 md:opacity-95"
+              {/* Photo : fond de la carte sur téléphone, moitié droite sur grand écran */}
+              <div className="absolute inset-0 md:static md:order-2 bg-white">
+                <img
+                  src={getImageUrl(prod.image1, BASE_URL)}
+                  alt={prod.designation}
+                  className="h-full w-full object-contain p-3"
                   onError={(e) => { e.target.src = "https://placehold.co/800x400?text=Produit" }}
                 />
-              )}
+                <div className="absolute inset-0 bg-black/70 md:hidden" />
+              </div>
 
-              {/* Marketing Text */}
-              <div className="relative z-20 max-w-md space-y-4">
-                <span className="text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-full bg-white/15 backdrop-blur-sm flex items-center gap-1.5 w-max">
-                  <Sparkles className="h-3 w-3 text-yellow-300" /> Sélection Spéciale
+              {/* Texte */}
+              <div className="relative z-10 md:order-1 flex flex-col justify-center gap-3 px-6 md:px-12 pb-8">
+                <span className="w-max text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-full bg-white/15 flex items-center gap-1.5">
+                  <Sparkles className="h-3 w-3 text-yellow-300" /> À la une
                 </span>
-                <h2 className="text-3xl md:text-5xl font-extrabold leading-tight tracking-tight drop-shadow-sm">{prod.designation}</h2>
-                <p className="text-white/80 text-sm md:text-base line-clamp-2">{prod.description || "Découvrez un produit phare disponible dès maintenant au meilleur prix."}</p>
-                <div className="pt-2 flex items-center gap-4">
-                  <span className="text-xl md:text-2xl font-black text-white">{numberFormat(prod.prix_vente)} FCFA</span>
-                  <button 
+                <h2 className="text-2xl md:text-4xl font-extrabold leading-tight tracking-tight line-clamp-2">{prod.designation}</h2>
+                {prod.description && (
+                  <p className="text-white/80 text-sm md:text-base line-clamp-2 max-w-md">{prod.description}</p>
+                )}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-1">
+                  <span className="text-xl md:text-2xl font-black">{numberFormat(prod.prix_vente)} FCFA</span>
+                  <button
                     onClick={() => onBuyNow(prod)}
-                    style={{ backgroundColor: brandColor }}
-                    className="px-6 py-2.5 rounded-xl font-bold text-white text-sm hover:opacity-90 active:scale-95 transition-all shadow-md flex items-center gap-1.5"
+                    style={{ backgroundColor: brandColor, color: couleurTexte(brandColor) }}
+                    className="px-6 py-2.5 rounded-xl font-bold text-sm hover:opacity-90 active:scale-95 transition-all shadow-md flex items-center gap-1.5"
                   >
                     Commander <ShoppingBag className="h-4 w-4" />
                   </button>
@@ -743,13 +782,14 @@ function HeroCarousel({ products, brandColor, onBuyNow }) {
           )
         })}
 
-        {/* Indicator dots */}
-        {products.length > 1 && (
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex gap-2">
-            {products.map((_, index) => (
-              <button 
-                key={index} 
+        {/* Points de navigation : sur la partie foncée, donc toujours visibles */}
+        {slides.length > 1 && (
+          <div className="absolute bottom-4 left-6 md:left-12 z-20 flex gap-2">
+            {slides.map((_, index) => (
+              <button
+                key={index}
                 onClick={() => setCurrentIndex(index)}
+                aria-label={`Produit ${index + 1}`}
                 className={`h-2 rounded-full transition-all duration-300 ${index === currentIndex ? "w-6 bg-white" : "w-2 bg-white/40"}`}
               />
             ))}
@@ -763,53 +803,33 @@ function HeroCarousel({ products, brandColor, onBuyNow }) {
 // ==========================================
 // --- COMPOSANT : FILTRE CATEGORIES
 // ==========================================
-function CategoryFilters({ activeFilter, brandColor, onSelectFilter }) {
+// [LOT1-BOUTIQUE] Une seule liste de filtres au lieu de trois boutons copiés-collés.
+// « Derniers en stock » n'apparaît que s'il existe au moins un produit concerné (showLowStock).
+function CategoryFilters({ activeFilter, brandColor, onSelectFilter, showLowStock = true }) {
+  const filtres = [
+    { id: "all", label: "Tout voir" },
+    { id: "instock", label: "Disponibles" },
+    ...(showLowStock ? [{ id: "promo", label: "Derniers en stock" }] : []),
+  ]
+
   return (
-    <section className="mb-8">
-      <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400 mb-3">Parcourir la collection</h3>
+    <section className="mb-6">
       <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-none snap-x">
-        
-        {/* All Products button */}
-        <button
-          onClick={() => onSelectFilter('all')}
-          style={{
-            backgroundColor: activeFilter === 'all' ? brandColor : "",
-            color: activeFilter === 'all' ? "#fff" : ""
-          }}
-          className={`px-5 py-2.5 rounded-full text-sm font-semibold whitespace-nowrap border snap-start transition flex items-center gap-2 ${
-            activeFilter === 'all' ? "border-transparent shadow-sm" : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-          }`}
-        >
-          <ShoppingBag className="h-4 w-4" /> Tout voir
-        </button>
-
-        {/* In-stock button */}
-        <button
-          onClick={() => onSelectFilter('instock')}
-          style={{
-            backgroundColor: activeFilter === 'instock' ? brandColor : "",
-            color: activeFilter === 'instock' ? "#fff" : ""
-          }}
-          className={`px-5 py-2.5 rounded-full text-sm font-semibold whitespace-nowrap border snap-start transition flex items-center gap-2 ${
-            activeFilter === 'instock' ? "border-transparent shadow-sm" : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-          }`}
-        >
-          <Sparkles className="h-4 w-4" /> Disponibles
-        </button>
-
-        {/* Low Stock button */}
-        <button
-          onClick={() => onSelectFilter('promo')}
-          style={{
-            backgroundColor: activeFilter === 'promo' ? brandColor : "",
-            color: activeFilter === 'promo' ? "#fff" : ""
-          }}
-          className={`px-5 py-2.5 rounded-full text-sm font-semibold whitespace-nowrap border snap-start transition flex items-center gap-2 ${
-            activeFilter === 'promo' ? "border-transparent shadow-sm" : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-          }`}
-        >
-          <Clock className="h-4 w-4" /> Bientôt épuisé
-        </button>
+        {filtres.map((f) => {
+          const actif = activeFilter === f.id
+          return (
+            <button
+              key={f.id}
+              onClick={() => onSelectFilter(f.id)}
+              style={actif ? { backgroundColor: brandColor, color: couleurTexte(brandColor) } : undefined}
+              className={`px-5 py-2.5 rounded-full text-sm font-semibold whitespace-nowrap border snap-start transition ${
+                actif ? "border-transparent shadow-sm" : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              {f.label}
+            </button>
+          )
+        })}
       </div>
     </section>
   )
@@ -818,33 +838,35 @@ function CategoryFilters({ activeFilter, brandColor, onSelectFilter }) {
 // ==========================================
 // --- COMPOSANT : CARTE PRODUIT
 // ==========================================
+// [LOT1-BOUTIQUE] Plus de texte « Aucune description… » quand il n'y a pas de description,
+// plus de ligne « PRIX » inutile, bouton lisible sur toutes les couleurs, photos chargées à la demande.
 function ProductCard({ product, brandColor, onAddToCart, onOpenDetails, parseOption }) {
   const isOutOfStock = product.quantite_stock <= 0
   const isLowStock = product.quantite_stock > 0 && product.quantite_stock <= 5
-  
-  // Analyse des options pour affichage de petits badges sur les fiches produits
+
+  // Analyse des options pour afficher de petits badges sur la photo
   const hasSizes = parseOption(product.taille_dimension).length > 0;
   const hasColors = parseOption(product.color).length > 0;
 
   return (
-    <div 
+    <div
       onClick={() => !isOutOfStock && onOpenDetails(product)}
       className="group bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl hover:border-slate-200 transition-all duration-300 flex flex-col justify-between cursor-pointer relative"
     >
-      
-      {/* Dynamic Image Wrapper */}
+      {/* Photo */}
       <div className="aspect-square bg-slate-50 relative overflow-hidden">
-        <img 
-          src={getImageUrl(product.image1, BASE_URL)} 
-          alt={product.designation} 
+        <img
+          src={getImageUrl(product.image1, BASE_URL)}
+          alt={product.designation}
+          loading="lazy"
+          decoding="async"
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           onError={(e) => { (e.target).src = "https://placehold.co/300x300?text=Produit" }}
         />
 
-        {/* Dynamic Badges */}
         {isLowStock && (
           <span className="absolute top-3 left-3 bg-amber-500 text-white font-extrabold text-[10px] px-2.5 py-1 rounded-lg uppercase tracking-wider shadow-sm z-10 flex items-center gap-1">
-            <Clock className="h-3 w-3" /> Stock Limité
+            <Clock className="h-3 w-3" /> Stock limité
           </span>
         )}
 
@@ -856,42 +878,37 @@ function ProductCard({ product, brandColor, onAddToCart, onOpenDetails, parseOpt
           </div>
         )}
 
-        {/* Petites pastilles d'options disponibles en bas de l'image */}
         {!isOutOfStock && (hasSizes || hasColors) && (
           <div className="absolute bottom-2 left-2 flex gap-1 z-10">
             {hasSizes && (
               <span className="bg-white/90 backdrop-blur-sm text-[9px] font-bold text-slate-800 px-2 py-0.5 rounded-md flex items-center gap-1 shadow-sm border border-slate-100">
-                <Layers className="h-2.5 w-2.5 text-slate-500" /> Choix tailles
+                <Layers className="h-2.5 w-2.5 text-slate-500" /> Choix de tailles
               </span>
             )}
             {hasColors && (
               <span className="bg-white/90 backdrop-blur-sm text-[9px] font-bold text-slate-800 px-2 py-0.5 rounded-md flex items-center gap-1 shadow-sm border border-slate-100">
-                <Palette className="h-2.5 w-2.5 text-slate-500" /> Couleur
+                <Palette className="h-2.5 w-2.5 text-slate-500" /> Couleurs
               </span>
             )}
           </div>
         )}
       </div>
 
-      {/* Description Block */}
+      {/* Nom, description (seulement s'il y en a une), prix, bouton */}
       <div className="p-4 flex flex-col justify-between flex-grow">
         <div className="space-y-1">
-          <h4 className="font-bold text-slate-800 text-sm md:text-base line-clamp-1 group-hover:text-slate-955 transition-colors">
+          <h4 className="font-bold text-slate-800 text-sm md:text-base line-clamp-2">
             {product.designation}
           </h4>
-          <p className="text-xs text-slate-400 line-clamp-2 min-h-[32px]">
-            {product.description || "Aucune description supplémentaire fournie pour cet article."}
-          </p>
+          {product.description && (
+            <p className="text-xs text-slate-400 line-clamp-2">{product.description}</p>
+          )}
         </div>
 
-        {/* RECO : Remplacement du bouton "+" par un bouton d'action "Voir" clair pour éliminer toute friction d'achat */}
-        <div className="mt-4 pt-3 border-t border-slate-50 flex flex-col gap-2">
-          <div className="flex justify-between items-baseline">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Prix</span>
-            <span className="font-black text-slate-900 text-sm md:text-base whitespace-nowrap">
-              {numberFormat(product.prix_vente)} F
-            </span>
-          </div>
+        <div className="mt-3 flex flex-col gap-2.5">
+          <span className="font-black text-slate-900 text-base md:text-lg whitespace-nowrap">
+            {numberFormat(product.prix_vente)} F
+          </span>
 
           <button
             disabled={isOutOfStock}
@@ -899,11 +916,11 @@ function ProductCard({ product, brandColor, onAddToCart, onOpenDetails, parseOpt
               e.stopPropagation()
               onOpenDetails(product)
             }}
-            style={{ 
+            style={{
               backgroundColor: isOutOfStock ? "#f1f5f9" : brandColor,
-              color: isOutOfStock ? "#94a3b8" : "#ffffff"
+              color: isOutOfStock ? "#94a3b8" : couleurTexte(brandColor)
             }}
-            className="w-full py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all duration-150 active:scale-95 text-center flex items-center justify-center gap-1.5 shadow-sm hover:opacity-90 disabled:cursor-not-allowed"
+            className="w-full py-2.5 rounded-xl font-bold text-sm transition-all duration-150 active:scale-95 text-center flex items-center justify-center gap-1.5 shadow-sm hover:opacity-90 disabled:cursor-not-allowed"
           >
             {isOutOfStock ? "Épuisé" : "Voir l'article"}
           </button>
@@ -917,7 +934,7 @@ function ProductCard({ product, brandColor, onAddToCart, onOpenDetails, parseOpt
 // --- COMPOSANT : TIROIR PANIER & CHECKOUT
 // ==========================================
 function CartDrawer({
-  isOpen, cart, montantTotal, brandColor, nomClient, phoneClient, adresse, submitting, typeLivraison,
+  infos, isOpen, cart, montantTotal, brandColor, nomClient, phoneClient, adresse, submitting, typeLivraison,
   onClose, onUpdateQuantity, onRemove, setNomClient, setPhoneClient, setAdresse, onSubmit
 }) {
   return (
@@ -1039,24 +1056,8 @@ function CartDrawer({
                 )
               })}
 
-              {/* SECTION LIVRAISON DYNAMIQUE DANS LE TIROIR PANIER */}
-              <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl mb-4 mt-6">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 bg-white rounded-xl shadow-sm text-slate-600 mt-0.5">
-                    <MapPin className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <h5 className="text-sm font-bold text-slate-900">Information livraison</h5>
-                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                      {typeLivraison === 'gratuit' ? (
-                        <span className="text-emerald-600 font-semibold"><Sparkles className="inline h-4 w-4 mr-1" /> La livraison est offerte par la boutique !</span>
-                      ) : (
-                        <span><Truck className="inline h-4 w-4 mr-1" /> Les frais de livraison dépendent de votre zone et seront convenus avec le vendeur lors de la validation.</span>
-                      )}
-                    </p>
-                  </div>
-                </div>
-              </div>
+              {/* [LOT2-BOUTIQUE] Livraison et paiement du vendeur, là où le client hésite */}
+              <InfosCommande infos={infos} typeLivraison={typeLivraison} />
 
               {/* Formulaire de livraison minimaliste */}
               <form onSubmit={onSubmit} className="bg-slate-50 border border-slate-100 rounded-3xl p-4 space-y-3 shadow-inner">
@@ -1094,8 +1095,8 @@ function CartDrawer({
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full py-4 mt-2 rounded-2xl font-bold text-white text-sm hover:opacity-90 transition-all shadow-md active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
-                  style={{ backgroundColor: brandColor }}
+                  className="w-full py-4 mt-2 rounded-2xl font-bold text-sm hover:opacity-90 transition-all shadow-md active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                  style={{ backgroundColor: brandColor, color: couleurTexte(brandColor) }}
                 >
                   <MessageCircle className="h-4 w-4" />
                   {submitting ? "Validation de la commande..." : "Envoyer la commande via WhatsApp"}
@@ -1140,7 +1141,7 @@ function CartDrawer({
 // ==========================================
 // --- COMPOSANT : MODAL DETAILS PRODUIT (AVEC ATTRIBUTS DÉCLINABLES)
 // ==========================================
-function ProductDetailModal({ isOpen, product, brandColor, onClose, onAddToCart, onDirectOrder, typeLivraison, cartCount }) {
+function ProductDetailModal({ infos, isOpen, product, brandColor, onClose, onAddToCart, onDirectOrder, typeLivraison, cartCount }) {
   const [activeImageIndex, setActiveImageIndex] = useState(0)
   const [selectedColor, setSelectedColor] = useState("")
   const [selectedSize, setSelectedSize] = useState("")
@@ -1364,12 +1365,19 @@ function ProductDetailModal({ isOpen, product, brandColor, onClose, onAddToCart,
               <Truck className="h-4 w-4 text-slate-500 shrink-0" />
               <div>
                 {typeLivraison === 'gratuit' ? (
-                  <span>🚀 <span className="font-bold text-emerald-600">Livraison offerte</span> sur cet article et toute la boutique !</span>
+                  <span><span className="font-bold text-emerald-600">Livraison offerte</span> sur cet article et toute la boutique !</span>
                 ) : (
-                  <span>🚚 <span className="font-bold text-slate-800">Livraison rapide</span> : Tarif calculé selon votre zone lors de la commande.</span>
+                  <span><span className="font-bold text-slate-800">Livraison</span> : {(infos && infos.infos_livraison) || "tarif calculé selon votre zone lors de la commande."}</span>
                 )}
               </div>
             </div>
+
+            {/* [LOT2-BOUTIQUE] Moyens de paiement acceptés par le vendeur */}
+            {libellesPaiements(infos).length > 0 && (
+              <p className="text-xs text-slate-500">
+                <span className="font-bold text-slate-700">Paiement</span> : {libellesPaiements(infos).join(" · ")}
+              </p>
+            )}
 
             {/* Message d'erreur dynamique */}
             {errorMsg && (
@@ -1390,7 +1398,7 @@ function ProductDetailModal({ isOpen, product, brandColor, onClose, onAddToCart,
 
             {safeCartCount > 0 && (
               <div className="p-3 bg-amber-50 text-amber-800 text-[11px] font-semibold rounded-2xl border border-amber-100/60 leading-normal flex flex-col gap-1 shadow-sm animate-fade-in">
-                <span>💡 <strong>Conseil :</strong> Vous avez déjà {safeCartCount} article(s) dans votre panier.</span>
+                <span><strong>Conseil :</strong> Vous avez déjà {safeCartCount} article(s) dans votre panier.</span>
                 <span className="text-slate-600 font-normal">Ajoutez ce produit au panier ci-dessous pour grouper votre envoi et ne payer qu&apos;une seule livraison !</span>
               </div>
             )}
@@ -1403,7 +1411,7 @@ function ProductDetailModal({ isOpen, product, brandColor, onClose, onAddToCart,
                   className="w-full py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-sm shadow-md transition-all duration-150 active:scale-95 flex items-center justify-center gap-2"
                 >
                   <MessageCircle className="h-5 w-5 fill-white/10" />
-                  <span>Acheter direct sur WhatsApp 🟢</span>
+                  <span>Acheter direct sur WhatsApp</span>
                 </button>
               )}
 
@@ -1414,84 +1422,17 @@ function ProductDetailModal({ isOpen, product, brandColor, onClose, onAddToCart,
                   backgroundColor: isOutOfStock 
                     ? "#cbd5e1" 
                     : brandColor, 
-                  color: isOutOfStock 
-                    ? "#ffffff" 
-                    : "#ffffff"
+                  color: isOutOfStock ? "#ffffff" : couleurTexte(brandColor)
                 }}
                 className="w-full py-3.5 rounded-2xl font-extrabold text-xs uppercase tracking-wider hover:opacity-90 transition-all duration-150 active:scale-95 flex items-center justify-center gap-2 shadow-sm"
               >
                 <ShoppingBag className="h-4 w-4" />
-                <span>{safeCartCount > 0 ? "Ajouter au panier avec les autres" : "Ajouter au panier DiayRek"}</span>
+                <span>{safeCartCount > 0 ? "Ajouter au panier avec les autres" : "Ajouter au panier"}</span>
               </button>
             </div>
           </div>
         </div>
       </div>
     </div>
-  )
-}
-
-// ==========================================
-// --- COMPOSANT : FOOTER (STYLE BLEU NUIT SOMBRE)
-// ==========================================
-function Footer({ shopName, brandColor, logo, whatsapp }) {
-  const safeShopName = shopName || "Boutique"
-  const safeBrandColor = brandColor || "#10b981"
-  const formattedWhatsapp = whatsapp ? whatsapp.replace(/\D/g, "") : ""
-
-  return (
-    <footer className="bg-[#0f172a] text-slate-300 border-t border-slate-800 mt-24 py-12 px-6">
-      <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-8">
-        <div className="flex items-center gap-3">
-          {logo ? (
-            <img 
-              src={getImageUrl(logo, BASE_URL)} 
-              alt={safeShopName} 
-              className="h-12 w-12 object-cover rounded-2xl shadow-sm border border-slate-700"
-              onError={(e) => { (e.target).style.display = 'none'; }}
-            />
-          ) : (
-            <div 
-              className="h-12 w-12 flex items-center justify-center rounded-2xl font-black text-white shadow-sm text-xl" 
-              style={{ backgroundColor: safeBrandColor }}
-            >
-              {safeShopName.charAt(0).toUpperCase()}
-            </div>
-          )}
-          <div>
-            <h4 className="font-extrabold text-lg text-white leading-tight">{safeShopName}</h4>
-            <p className="text-xs text-slate-400 mt-0.5">Votre boutique en ligne de confiance</p>
-          </div>
-        </div>
-
-        {whatsapp && (
-          <a 
-            href={`https://wa.me/${formattedWhatsapp}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2.5 px-5 py-3 rounded-2xl bg-slate-800 text-white hover:bg-slate-700 border border-slate-700 font-bold text-sm transition active:scale-95 shadow-sm"
-          >
-            <MessageCircle className="h-5 w-5 text-emerald-400 fill-emerald-400/10" />
-            <span>Nous contacter sur WhatsApp</span>
-          </a>
-        )}
-      </div>
-      
-      <div className="max-w-6xl mx-auto border-t border-slate-800 mt-8 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400 font-medium">
-        <p>&copy; {new Date().getFullYear()} {safeShopName}. Tous droits réservés.</p>
-        <p className="flex items-center gap-1.5">
-          <span>Propulsé par</span>
-          <a 
-            href="https://easyjaay.baobapp.tech" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="font-extrabold text-slate-300 hover:text-white transition flex items-center gap-1"
-          >
-            <span className="h-4 w-6 bg-teal-600 text-white rounded flex items-center justify-center font-black text-[9px]">AKH</span>
-            <span>DiayRek</span>
-          </a>
-        </p>
-      </div>
-    </footer>
   )
 }

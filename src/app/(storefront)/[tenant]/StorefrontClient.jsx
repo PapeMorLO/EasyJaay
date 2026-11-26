@@ -25,5 +25,5 @@ export default async function Page({ params }) {
     console.error("Erreur lors de la récupération des données :", err);
   }
   
-  return <StorefrontClient initialData={data} tenant={tenant} />;
+  return <StorefrontClient initialData={data} tenant={tenant} />; 
 }

@@ -1,0 +1,35 @@
+// ==========================================
+// --- COMPOSANT : FILTRE CATEGORIES
+// ==========================================
+// [LOT1-BOUTIQUE] Une seule liste de filtres au lieu de trois boutons copiés-collés.
+// « Derniers en stock » n'apparaît que s'il existe au moins un produit concerné (showLowStock).
+function CategoryFilters({ activeFilter, brandColor, onSelectFilter, showLowStock = true }) {
+  const filtres = [
+    { id: "all", label: "Tout voir" },
+    { id: "instock", label: "Disponibles" },
+    ...(showLowStock ? [{ id: "promo", label: "Derniers en stock" }] : []),
+  ]
+
+  return (
+    <section className="mb-6">
+      <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-none snap-x">
+        {filtres.map((f) => {
+          const actif = activeFilter === f.id
+          return (
+            <button
+              key={f.id}
+              onClick={() => onSelectFilter(f.id)}
+              style={actif ? { backgroundColor: brandColor, color: couleurTexte(brandColor) } : undefined}
+              className={`px-5 py-2.5 rounded-full text-sm font-semibold whitespace-nowrap border snap-start transition ${
+                actif ? "border-transparent shadow-sm" : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              {f.label}
+            </button>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
